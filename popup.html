@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px; padding: 16px 14px;
+      font-family: 'Helvetica Neue', 'Segoe UI', sans-serif;
+      background: #0f0f1a; color: #e0e0e0;
+    }
+
+    /* ヘッダー */
+    .header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px;
+    }
+    .header h1 {
+      font-size: 15px; font-weight: 700; color: #fff;
+      letter-spacing: 0.02em;
+    }
+    .header .badge {
+      font-size: 9px; padding: 2px 6px;
+      background: rgba(233, 69, 96, 0.2);
+      color: #e94560; border-radius: 10px;
+      letter-spacing: 0.05em;
+    }
+
+    /* プライマリボタン */
+    .btn-hero {
+      width: 100%; padding: 11px 14px;
+      background: linear-gradient(135deg, #e94560, #c73850);
+      color: white; border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 8px;
+      transition: all 0.15s;
+      box-shadow: 0 2px 8px rgba(233, 69, 96, 0.25);
+    }
+    .btn-hero:hover {
+      background: linear-gradient(135deg, #f05a73, #d94a62);
+      box-shadow: 0 4px 12px rgba(233, 69, 96, 0.35);
+      transform: translateY(-1px);
+    }
+
+    /* セクション */
+    .section {
+      margin-top: 14px;
+    }
+    .section-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+      color: #666; margin-bottom: 7px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(to right, #2a2a4a, transparent);
+    }
+
+    /* ボタン共通 */
+    button {
+      width: 100%; padding: 8px 12px; margin: 2px 0;
+      border: none; border-radius: 8px;
+      font-size: 12px; cursor: pointer;
+      transition: all 0.12s; text-align: left;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .btn { background: #1a1a2e; color: #e0e0e0; border: 1px solid #252540; }
+    .btn:hover { background: #222240; border-color: #3a3a5a; }
+
+    .btn-accent { background: #1a2040; color: #7eb8ff; border: 1px solid #253060; }
+    .btn-accent:hover { background: #1e2850; border-color: #3a4a70; }
+
+    .btn-danger { background: #2a1520; color: #ff7088; border: 1px solid #3a1a2a; }
+    .btn-danger:hover { background: #351a28; border-color: #502030; }
+
+    .btn-row {
+      display: flex; gap: 4px;
+    }
+    .btn-row button { flex: 1; justify-content: center; text-align: center; }
+
+    .shortcut {
+      opacity: 0.4; font-size: 10px; margin-left: auto;
+    }
+
+    /* 折り畳みセクション */
+    details {
+      margin-top: 4px;
+    }
+    details summary {
+      cursor: pointer; font-size: 11px; color: #999;
+      padding: 6px 0; list-style: none;
+      display: flex; align-items: center; gap: 6px;
+      transition: color 0.15s;
+    }
+    details summary:hover { color: #ccc; }
+    details summary::before {
+      content: '▸'; font-size: 10px;
+      transition: transform 0.15s; display: inline-block;
+    }
+    details[open] summary::before { transform: rotate(90deg); }
+    details summary::-webkit-details-marker { display: none; }
+
+    .details-body {
+      margin-top: 4px; padding: 8px 10px;
+      background: #13132a; border-radius: 8px;
+      border: 1px solid #1e1e3a;
+    }
+
+    /* フォーム要素 */
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%; font-size: 11px; padding: 6px 8px;
+      background: #1a1a30; border: 1px solid #2a2a4a;
+      border-radius: 6px; color: #eee;
+      outline: none; transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: #e94560;
+    }
+    textarea { resize: vertical; line-height: 1.5; font-family: inherit; }
+
+    .form-group {
+      margin-bottom: 6px;
+    }
+    .form-label {
+      font-size: 10px; color: #888; margin-bottom: 3px;
+    }
+
+    /* レンジスライダー */
+    input[type="range"] {
+      accent-color: #e94560;
+    }
+
+    /* ステータスバー */
+    .status-bar {
+      margin-top: 12px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .status-item {
+      font-size: 10px; padding: 6px 8px;
+      background: #13132a; border-radius: 6px;
+      display: flex; align-items: center; gap: 6px;
+      border: 1px solid #1e1e3a;
+    }
+    .dot {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-green { background: #4caf50; box-shadow: 0 0 4px rgba(76, 175, 80, 0.5); }
+    .dot-red { background: #f44336; }
+    .dot-yellow { background: #ff9800; }
+
+    /* チェックボックス */
+    input[type="checkbox"], input[type="radio"] {
+      accent-color: #e94560;
+    }
+
+    .save-feedback {
+      font-size: 10px; color: #888; margin-top: 2px; min-height: 14px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ヘッダー -->
+  <div class="header">
+    <h1>📻 AITuber Radio</h1>
+    <span class="badge">v0.6.0</span>
+  </div>
+
+  <!-- ビューワー起動 -->
+  <button class="btn-hero" id="openViewer">🖥️ ビューワーを開く</button>
+
+  <!-- ━━━ ラジオ ━━━ -->
+  <div class="section">
+    <div class="section-label">ラジオ</div>
+
+    <!-- プロジェクトフォルダ or 台本直接読み込み -->
+    <div class="btn-row">
+      <button class="btn" id="loadContentFolder">📂 フォルダ</button>
+      <button class="btn" id="loadScript">📖 台本 (.md)</button>
+    </div>
+
+    <!-- 台本セレクター（フォルダ読み込み後に表示） -->
+    <div id="scriptSelectorArea" style="display:none;margin-top:6px">
+      <div class="form-label">台本</div>
+      <select id="scriptSelector" style="width:100%;font-size:11px;padding:6px 8px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee"></select>
+    </div>
+
+    <!-- 再生 / 停止 + 開始ウェイト -->
+    <div style="display:flex;gap:4px;align-items:center;margin-top:6px">
+      <button class="btn-accent" id="playDefault" style="flex:1">▶️ 再生 <span class="shortcut">⌥⇧S</span></button>
+      <button class="btn-danger" id="stopPlayback" style="flex:1">⏹️ 停止 <span class="shortcut">⌥⇧P</span></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;color:#888">
+      <span>⏱️</span>
+      <input type="number" id="startDelay" min="0" max="60" value="0" step="1"
+             style="width:48px;font-size:11px;padding:4px 6px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee;text-align:center">
+      <span>秒後に開始</span>
+    </div>
+
+    <button class="btn" id="freeTalk" style="margin-top:6px">🗣️ フリートーク</button>
+    <button class="btn" id="toggleLocalChat">💬 ローカルチャット</button>
+  </div>
+
+  <!-- ━━━ セットアップ ━━━ -->
+  <div class="section">
+    <div class="section-label">セットアップ</div>
+
+    <div class="btn-row">
+      <button class="btn" id="loadVRM">📂 VRM モデル</button>
+      <button class="btn" id="changeBG">🖼️ 背景画像</button>
+    </div>
+
+    <!-- AI設定 -->
+    <details id="aiSettingsDetails">
+      <summary>⚙️ AI 接続設定</summary>
+      <div class="details-body">
+        <div class="form-group">
+          <div class="form-label">プロバイダー</div>
+          <select id="llmProvider">
+            <option value="gemini">✨ Google Gemini（デフォルト）</option>
+            <option value="openai">🤖 OpenAI</option>
+            <option value="claude">🟠 Claude (Anthropic)</option>
+            <option value="ollama">🦙 Ollama（ローカル）</option>
+            <option value="custom">⚙️ カスタム</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">API URL</div>
+          <input type="text" id="llmApiUrl" placeholder="API URL">
+        </div>
+        <div class="form-group">
+          <div class="form-label">API Key</div>
+          <input type="password" id="llmApiKey" placeholder="API Key">
+        </div>
+        <div class="form-group">
+          <div class="form-label">モデル名</div>
+          <input type="text" id="llmModel" placeholder="モデル名">
+        </div>
+        <button class="btn-accent" id="saveLLMSettings" style="margin-top:4px">💾 保存</button>
+        <div class="save-feedback" id="llmStatus"></div>
+      </div>
+    </details>
+
+    <!-- キャラクター設定 -->
+    <details id="characterDetails">
+      <summary>🎭 キャラクター設定</summary>
+      <div class="details-body">
+        <div class="form-label">キャラクターの性格・口調・設定</div>
+        <textarea id="characterPrompt" rows="8" placeholder="キャラクター設定を入力..."></textarea>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn-accent" id="saveCharacter">💾 保存</button>
+          <button class="btn" id="resetCharacter">🔄 デフォルト</button>
+        </div>
+        <div class="save-feedback" id="charStatus"></div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ━━━ 詳細設定 ━━━ -->
+  <div class="section">
+    <details>
+      <summary>🔧 詳細設定</summary>
+      <div class="details-body">
+        <!-- 朗読順 -->
+        <div class="form-label" style="margin-bottom:4px">📖 朗読順</div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:#aaa;margin-bottom:6px">
+          <label style="cursor:pointer;display:flex;align-items:center;gap:3px">
+            <input type="radio" name="readOrder" value="sequential" id="readOrderSeq"> ファイル名順
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:3px">
+            <input type="radio" name="readOrder" value="random" id="readOrderRandom" checked> ランダム
+          </label>
+        </div>
+
+        <div style="height:1px;background:#2a2a3a;margin:8px 0"></div>
+
+        <!-- カメラ -->
+        <div class="form-label" style="margin-bottom:4px">📷 カメラ位置</div>
+        <div class="btn-row">
+          <button class="btn" id="saveCamera">📌 保存</button>
+          <button class="btn" id="resetCamera">🔄 リセット</button>
+        </div>
+
+        <div style="height:1px;background:#2a2a3a;margin:8px 0"></div>
+
+        <!-- テスト -->
+        <div class="form-label" style="margin-bottom:4px">🔊 テスト</div>
+        <div class="btn-row">
+          <button class="btn" id="testSpeak">🔊 発話</button>
+          <button class="btn" id="testEmotion">😱 表情</button>
+        </div>
+
+        <div style="height:1px;background:#2a2a3a;margin:8px 0"></div>
+
+        <!-- プリフェッチ -->
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer">
+          <input type="checkbox" id="prefetchEnabled">
+          プリフェッチ（先読み生成）
+        </label>
+
+        <div style="height:1px;background:#2a2a3a;margin:8px 0"></div>
+
+        <!-- ファイルリスト -->
+        <details id="fileListDetails">
+          <summary>📋 読み込み済みファイル</summary>
+          <div id="fileListContent" style="margin-top:4px;font-size:10px;color:#aaa;max-height:150px;overflow-y:auto">
+            <div style="color:#666">まだ読み込まれていません</div>
+          </div>
+        </details>
+      </div>
+    </details>
+  </div>
+
+  <!-- ステータス -->
+  <div class="status-bar">
+    <div class="status-item" id="status">
+      <span class="dot dot-red" id="statusDot"></span>
+      <span id="statusText">未接続</span>
+    </div>
+    <div class="status-item" id="aiStatus">
+      <span class="dot dot-red" id="aiDot"></span>
+      <span id="aiText">AI 確認中...</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
