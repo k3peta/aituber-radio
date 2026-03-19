@@ -657,6 +657,7 @@ function playAudio(audioBuffer) {
 // AI 読み変換（TTS読み間違い防止）
 // ============================================
 const readingCache = new Map()
+let readingConversionDisabled = false
 
 /**
  * 複数行のテキストをAIで読み変換（バッチ処理）
@@ -664,10 +665,11 @@ const readingCache = new Map()
  * AIが利用不可の場合は原文をそのまま返す
  */
 async function convertReadingsForTTS(lines) {
-  // AIが利用可能か確認
+  // 無効化済み or AIなし → 原文のまま
+  if (readingConversionDisabled) return lines.map(l => l.text)
   const settings = await chrome.storage.local.get(['llmApiKey', 'llmProvider'])
   if (!settings.llmApiKey && settings.llmProvider !== 'ollama') {
-    return lines.map(l => l.text) // AIなし → 原文のまま
+    return lines.map(l => l.text)
   }
 
   // キャッシュヒットチェック
@@ -739,7 +741,8 @@ async function convertReadingsForTTS(lines) {
         }
       }
     } catch (e) {
-      console.warn('読み変換エラー:', e)
+      console.log('読み変換: API応答なし、スキップ')
+      readingConversionDisabled = true
       for (const idx of batchIndices) {
         results[idx] = lines[idx].text
       }
