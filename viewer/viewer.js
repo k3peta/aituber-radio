@@ -758,8 +758,17 @@ async function speak(text, speakerId = 38) {
   try {
     if (!await checkVoicevox()) return
 
+    // 字幕は原文で表示
     status.textContent = `🎙️ ${text.slice(0, 25)}…`
-    const audioBuffer = await synthesize(text, speakerId)
+
+    // AI読み変換（1行）
+    const converted = await convertReadingsForTTS([{ text }])
+    const ttsText = converted[0] || text
+    if (ttsText !== text) {
+      console.log(`📝 読み変換: "${text}" → "${ttsText}"`)
+    }
+
+    const audioBuffer = await synthesize(ttsText, speakerId)
     if (audioBuffer) await playAudio(audioBuffer)
   } catch (e) {
     const msg = e.message.includes('Failed to fetch')
