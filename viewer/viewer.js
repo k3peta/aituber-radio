@@ -1195,6 +1195,17 @@ async function playScript(script) {
   const { meta, dialogues: rawDialogues } = script
   const title = meta.title || '台本'
 
+  // ウィンドウサイズ変更（frontmatter: size: 1080x1920）
+  if (meta.size) {
+    const sizeMatch = meta.size.match(/(\d+)\s*[x×]\s*(\d+)/i)
+    if (sizeMatch) {
+      const w = parseInt(sizeMatch[1])
+      const h = parseInt(sizeMatch[2])
+      window.resizeTo(w, h)
+      console.log(`📐 ウィンドウリサイズ: ${w}×${h}`)
+    }
+  }
+
   // AI 前処理
   const dialogues = await preprocessWithAI(rawDialogues)
 
@@ -2063,6 +2074,17 @@ async function playSetlist(setlist) {
   const globalSpeed = meta.speed ? parseFloat(meta.speed) : 0.95
   currentSpeedScale = globalSpeed
   const pauseBetween = meta.pause_between ? parseInt(meta.pause_between) : 1000
+
+  // ウィンドウサイズ変更（frontmatter: size: 1080x1920）
+  if (meta.size) {
+    const sizeMatch = meta.size.match(/(\d+)\s*[x×]\s*(\d+)/i)
+    if (sizeMatch) {
+      const w = parseInt(sizeMatch[1])
+      const h = parseInt(sizeMatch[2])
+      window.resizeTo(w, h)
+      console.log(`📐 ウィンドウリサイズ: ${w}×${h}`)
+    }
+  }
 
   // 開始ディレイ（OBS切替用）
   const delayData = await chrome.storage.local.get(['startDelay'])
