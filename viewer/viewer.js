@@ -113,6 +113,11 @@ let recordedChunks = []
 let isRecording = false
 let recordingStartTime = 0
 
+// recording fade control (global)
+let recordFadeAlpha = 1.0
+let recordFadeStart = 0
+const RECORD_FADE_DURATION = 1500
+
 // 音声出力を録画用にキャプチャするための MediaStreamDestination
 const recordDest = audioCtx.createMediaStreamDestination()
 
@@ -244,6 +249,15 @@ function startRecording() {
       }
     }
 
+    // 5. フェードイン/アウト オーバーレイ（黒）
+    if (recordFadeAlpha > 0) {
+      if (recordFadeStart > 0) {
+        recordFadeAlpha = Math.max(0, 1.0 - (Date.now() - recordFadeStart) / RECORD_FADE_DURATION)
+      }
+      ctx.fillStyle = `rgba(0, 0, 0, ${recordFadeAlpha})`
+      ctx.fillRect(0, 0, w, h)
+    }
+
     compRAF = requestAnimationFrame(drawCompositeFrame)
   }
 
@@ -287,6 +301,8 @@ function startRecording() {
   mediaRecorder.start(1000)
   isRecording = true
   recordingStartTime = Date.now()
+  recordFadeAlpha = 1.0  // 黒画面から開始
+  recordFadeStart = 0    // まだフェードイン開始しない
   updateRecordButton()
   console.log('Recording started (composite canvas)')
 }
@@ -2039,6 +2055,11 @@ async function playSetlist(setlist) {
       status.textContent = `⏱️ 「${title}」${i}秒後に開始…`
       await sleep(1000)
     }
+  }
+
+  // 録画中であればフェードイン開始
+  if (isRecording && recordFadeAlpha > 0) {
+    recordFadeStart = Date.now()
   }
 
   status.textContent = `📻 「${title}」放送開始`
