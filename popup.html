@@ -248,6 +248,39 @@
       </div>
     </details>
 
+    <!-- TTS設定 -->
+    <details id="ttsSettingsDetails">
+      <summary>🔊 TTS エンジン設定</summary>
+      <div class="details-body">
+        <div class="form-label" style="margin-bottom:4px">エンジン</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#aaa;margin-bottom:8px">
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px">
+            <input type="radio" name="ttsEngine" value="voicevox" id="ttsVoicevox" checked> VOICEVOX
+            <span style="color:#666;font-size:9px">（デフォルト :50021）</span>
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px">
+            <input type="radio" name="ttsEngine" value="sbv2" id="ttsSbv2"> Style-Bert-VITS2
+            <span style="color:#666;font-size:9px">（:5000）</span>
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px">
+            <input type="radio" name="ttsEngine" value="custom" id="ttsCustom"> カスタム
+          </label>
+        </div>
+        <div class="form-group">
+          <div class="form-label">ポート番号</div>
+          <input type="number" id="ttsPort" value="50021" min="1" max="65535"
+                 style="width:100px;font-size:11px;padding:4px 8px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee;text-align:center">
+        </div>
+        <div class="form-group" id="ttsModelGroup" style="display:none">
+          <div class="form-label">モデルID（SBV2）</div>
+          <input type="number" id="ttsModelId" value="0" min="0"
+                 style="width:100px;font-size:11px;padding:4px 8px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee;text-align:center">
+        </div>
+        <button class="btn-accent" id="saveTTSSettings" style="margin-top:4px">💾 保存</button>
+        <div class="save-feedback" id="ttsStatus"></div>
+      </div>
+    </details>
+
     <!-- キャラクター設定 -->
     <details id="characterDetails">
       <summary>🎭 キャラクター設定</summary>

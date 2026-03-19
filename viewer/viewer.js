@@ -503,44 +503,85 @@ function hideSubtitle() {
 }
 
 // ============================================
-// Speech (VOICEVOX TTS) — パイプライン方式
+// Speech (TTS) — VOICEVOX / Style-Bert-VITS2 / カスタム
 // ============================================
-let voicevoxAvailable = true
+let ttsAvailable = true
+let voicevoxAvailable = true  // 後方互換
 let currentSpeedScale = 0.95
+let ttsEngine = 'voicevox'
+let ttsPort = 50021
+let ttsModelId = 0
 
-async function checkVoicevox() {
+// 起動時にTTS設定を復元
+chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
+  if (data.ttsEngine) ttsEngine = data.ttsEngine
+  if (data.ttsPort) ttsPort = data.ttsPort
+  if (data.ttsModelId !== undefined) ttsModelId = data.ttsModelId
+  console.log(`TTS engine: ${ttsEngine} port:${ttsPort}`)
+})
+
+async function checkTTS() {
   try {
-    await fetch('http://localhost:50021/version')
+    if (ttsEngine === 'sbv2') {
+      await fetch(`http://localhost:${ttsPort}/status`)
+    } else {
+      await fetch(`http://localhost:${ttsPort}/version`)
+    }
+    ttsAvailable = true
     voicevoxAvailable = true
     return true
   } catch {
+    ttsAvailable = false
     voicevoxAvailable = false
-    status.textContent = '❌ VOICEVOXが起動していません'
+    const name = ttsEngine === 'sbv2' ? 'Style-Bert-VITS2' : 'VOICEVOX'
+    status.textContent = `❌ ${name}が起動していません (port:${ttsPort})`
     return false
   }
 }
+
+// 後方互換
+async function checkVoicevox() { return checkTTS() }
 
 /**
  * テキストから音声データを合成（再生はしない）
  * @returns {AudioBuffer|null}
  */
 async function synthesize(text, speakerId = 38) {
-  if (!voicevoxAvailable) return null
+  if (!ttsAvailable) return null
 
-  const qRes = await fetch(
-    `http://localhost:50021/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
-    { method: 'POST' }
-  )
-  if (!qRes.ok) throw new Error(`音声クエリ失敗 (${qRes.status})`)
-  const query = await qRes.json()
-  query.speedScale = currentSpeedScale
+  let wavBuffer
 
-  const sRes = await fetch(
-    `http://localhost:50021/synthesis?speaker=${speakerId}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(query) }
-  )
-  if (!sRes.ok) throw new Error(`音声合成失敗 (${sRes.status})`)
-  const wavBuffer = await sRes.arrayBuffer()
+  if (ttsEngine === 'sbv2') {
+    // Style-Bert-VITS2: GET /voice で直接WAV取得
+    const params = new URLSearchParams({
+      text: text,
+      model_id: String(ttsModelId),
+      speaker_id: String(speakerId),
+      length: String(1.0 / currentSpeedScale),  // VOICEVOXのspeedScaleの逆数
+      language: 'JP',
+      auto_split: 'true',
+      split_interval: '0.5'
+    })
+    const res = await fetch(`http://localhost:${ttsPort}/voice?${params}`)
+    if (!res.ok) throw new Error(`SBV2 音声合成失敗 (${res.status})`)
+    wavBuffer = await res.arrayBuffer()
+  } else {
+    // VOICEVOX: audio_query → synthesis
+    const qRes = await fetch(
+      `http://localhost:${ttsPort}/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
+      { method: 'POST' }
+    )
+    if (!qRes.ok) throw new Error(`音声クエリ失敗 (${qRes.status})`)
+    const query = await qRes.json()
+    query.speedScale = currentSpeedScale
+
+    const sRes = await fetch(
+      `http://localhost:${ttsPort}/synthesis?speaker=${speakerId}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(query) }
+    )
+    if (!sRes.ok) throw new Error(`音声合成失敗 (${sRes.status})`)
+    wavBuffer = await sRes.arrayBuffer()
+  }
 
   return await audioCtx.decodeAudioData(wavBuffer)
 }
@@ -2560,6 +2601,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break
     case 'cycle-emotion':
       cycleEmotion()
+      break
+    case 'update-tts-settings':
+      ttsEngine = msg.ttsEngine || 'voicevox'
+      ttsPort = msg.ttsPort || 50021
+      ttsModelId = msg.ttsModelId || 0
+      console.log(`TTS updated: ${ttsEngine} port:${ttsPort}`)
+      checkTTS()
       break
     case 'stop-playback':
       if (isPlaying) stopRequested = true

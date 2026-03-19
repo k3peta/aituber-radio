@@ -340,6 +340,46 @@ chrome.storage.local.get(['llmApiUrl', 'llmApiKey', 'llmModel', 'llmProvider'], 
 })
 
 // ============================================
+// TTS エンジン設定
+// ============================================
+const TTS_PORTS = { voicevox: 50021, sbv2: 5000, custom: 50021 }
+
+// エンジン選択時にポートを自動切替
+document.querySelectorAll('input[name="ttsEngine"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const engine = radio.value
+    document.getElementById('ttsPort').value = TTS_PORTS[engine] || 50021
+    document.getElementById('ttsModelGroup').style.display = engine === 'sbv2' ? 'block' : 'none'
+  })
+})
+
+// 保存
+document.getElementById('saveTTSSettings').addEventListener('click', async () => {
+  const engine = document.querySelector('input[name="ttsEngine"]:checked').value
+  const port = parseInt(document.getElementById('ttsPort').value) || TTS_PORTS[engine]
+  const modelId = parseInt(document.getElementById('ttsModelId').value) || 0
+
+  await chrome.storage.local.set({ ttsEngine: engine, ttsPort: port, ttsModelId: modelId })
+
+  // ビューワーにも通知
+  await sendToViewer('update-tts-settings', { ttsEngine: engine, ttsPort: port, ttsModelId: modelId })
+
+  document.getElementById('ttsStatus').textContent = '✅ 保存しました'
+  setTimeout(() => { document.getElementById('ttsStatus').textContent = '' }, 2000)
+})
+
+// 復元
+chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
+  if (data.ttsEngine) {
+    const radio = document.getElementById(data.ttsEngine === 'sbv2' ? 'ttsSbv2' : data.ttsEngine === 'custom' ? 'ttsCustom' : 'ttsVoicevox')
+    if (radio) radio.checked = true
+    document.getElementById('ttsModelGroup').style.display = data.ttsEngine === 'sbv2' ? 'block' : 'none'
+  }
+  if (data.ttsPort) document.getElementById('ttsPort').value = data.ttsPort
+  if (data.ttsModelId !== undefined) document.getElementById('ttsModelId').value = data.ttsModelId
+})
+
+// ============================================
 // キャラクター設定
 // ============================================
 const DEFAULT_CHARACTER_PROMPT = `あなたはラジオパーソナリティです。
