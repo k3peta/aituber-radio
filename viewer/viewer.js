@@ -512,20 +512,58 @@ function schedulePNGBlink() {
 }
 
 function setPNGTuber(idleUrl, talkUrl, blinkUrl) {
-  pngtuberIdle.src = idleUrl
-  pngtuberTalk.src = talkUrl || idleUrl
-  if (blinkUrl) {
-    pngtuberBlink.src = blinkUrl
-    pngtuberHasBlink = true
-  } else {
-    pngtuberHasBlink = false
+  // クロマキー処理してから設定
+  const loadWithChroma = (url) => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        const c = document.createElement('canvas')
+        c.width = img.naturalWidth
+        c.height = img.naturalHeight
+        const ctx2 = c.getContext('2d')
+        ctx2.drawImage(img, 0, 0)
+        const imageData = ctx2.getImageData(0, 0, c.width, c.height)
+        const d = imageData.data
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i+1], b = d[i+2]
+          // 緑背景を透過（緑が支配的で明るい部分）
+          if (g > 100 && g > r * 1.4 && g > b * 1.4) {
+            d[i+3] = 0  // アルファを0に
+          }
+          // エッジのグリーンスピル軽減
+          else if (g > 80 && g > r * 1.1 && g > b * 1.1) {
+            d[i+3] = Math.max(0, d[i+3] - 128)
+          }
+        }
+        ctx2.putImageData(imageData, 0, 0)
+        resolve(c.toDataURL('image/png'))
+      }
+      img.onerror = () => resolve(url)  // 失敗時はそのまま
+      img.src = url
+    })
   }
-  pngtuberMode = true
-  pngtuberLayer.style.display = 'block'
-  canvas.style.display = 'none'
-  status.textContent = '🖼️ PNGTuber モード'
-  console.log('PNGTuber mode:', { idle: idleUrl, talk: talkUrl || '(=idle)', blink: blinkUrl || 'none' })
-  schedulePNGBlink()
+
+  Promise.all([
+    loadWithChroma(idleUrl),
+    talkUrl ? loadWithChroma(talkUrl) : Promise.resolve(null),
+    blinkUrl ? loadWithChroma(blinkUrl) : Promise.resolve(null)
+  ]).then(([idleData, talkData, blinkData]) => {
+    pngtuberIdle.src = idleData
+    pngtuberTalk.src = talkData || idleData
+    if (blinkData) {
+      pngtuberBlink.src = blinkData
+      pngtuberHasBlink = true
+    } else {
+      pngtuberHasBlink = false
+    }
+    pngtuberMode = true
+    pngtuberLayer.style.display = 'block'
+    canvas.style.display = 'none'
+    status.textContent = '🖼️ PNGTuber モード'
+    console.log('PNGTuber mode (chroma keyed)')
+    schedulePNGBlink()
+  })
 }
 
 function disablePNGTuber() {
@@ -3039,6 +3077,10 @@ document.getElementById('folderInput').addEventListener('change', async (e) => {
 // Drag & Drop (VRM / 台本 / 背景)
 // ============================================
 const dropZone = document.getElementById('drop-zone')
+// ブラウザのデフォルトドロップ動作を完全にブロック
+window.addEventListener('dragover', (e) => e.preventDefault())
+window.addEventListener('drop', (e) => e.preventDefault())
+
 document.body.addEventListener('dragover', (e) => {
   e.preventDefault()
   dropZone.style.display = 'flex'
