@@ -30,12 +30,15 @@ media/
 ### おすすめの素材サイト（フリー素材）
 
 - **BGM・ジングル**
-  - [DOVA-SYNDROME](https://dova-s.jp/) — フリーBGM
-  - [甘茶の音楽工房](https://amachamusic.chagasi.com/) — フリーBGM
+  - [YouTube オーディオライブラリ](https://studio.youtube.com/channel/UC/music) — YouTube 配信でそのまま使える。収益化OK多数
+  - [DOVA-SYNDROME](https://dova-s.jp/) — フリーBGM。ジャンル豊富
+  - [甘茶の音楽工房](https://amachamusic.chagasi.com/) — 落ち着いた雰囲気のBGMが多い
   - [効果音ラボ](https://soundeffect-lab.info/) — ジングル・SE
+  - [魔王魂](https://maou.audio/) — BGM・SE。商用利用可
 - **画像**
-  - [いらすとや](https://www.irasutoya.com/) — イラスト
-  - [Unsplash](https://unsplash.com/) — 写真素材
+  - [いらすとや](https://www.irasutoya.com/) — イラスト（オーバーレイ向き）
+  - [Unsplash](https://unsplash.com/) — 高品質写真素材（背景向き）
+  - [Pixabay](https://pixabay.com/) — 写真・イラスト。商用利用可
 
 ### フォルダ構成の例
 
