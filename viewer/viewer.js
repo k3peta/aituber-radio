@@ -106,6 +106,97 @@ const analyser = audioCtx.createAnalyser()
 const timeDomainData = new Float32Array(2048)
 
 // ============================================
+// 録画機能（MediaRecorder）
+// ============================================
+let mediaRecorder = null
+let recordedChunks = []
+let isRecording = false
+let recordingStartTime = 0
+
+// 音声出力を録画用にキャプチャするための MediaStreamDestination
+const recordDest = audioCtx.createMediaStreamDestination()
+
+// マスターゲイン: スピーカーと録画の両方に音声を分岐
+const masterGain = audioCtx.createGain()
+masterGain.connect(audioCtx.destination)
+masterGain.connect(recordDest)
+
+function startRecording() {
+  if (isRecording) return
+
+  // キャンバスのストリーム（30fps）
+  const canvasStream = canvas.captureStream(30)
+
+  // 音声チャネルの取得
+  const audioTracks = recordDest.stream.getAudioTracks()
+
+  // 合成ストリーム
+  const combinedStream = new MediaStream([
+    ...canvasStream.getVideoTracks(),
+    ...audioTracks
+  ])
+
+  recordedChunks = []
+  mediaRecorder = new MediaRecorder(combinedStream, {
+    mimeType: 'video/webm;codecs=vp9,opus',
+    videoBitsPerSecond: 4000000  // 4 Mbps
+  })
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) recordedChunks.push(e.data)
+  }
+
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(recordedChunks, { type: 'video/webm' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const now = new Date()
+    const ts = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`
+    a.href = url
+    a.download = `radio_${ts}.webm`
+    a.click()
+    URL.revokeObjectURL(url)
+    console.log('Recording saved:', a.download, `${(blob.size / 1024 / 1024).toFixed(1)} MB`)
+  }
+
+  mediaRecorder.start(1000) // 1秒ごとにデータ回収
+  isRecording = true
+  recordingStartTime = Date.now()
+  updateRecordButton()
+  console.log('Recording started')
+}
+
+function stopRecording() {
+  if (!isRecording || !mediaRecorder) return
+  mediaRecorder.stop()
+  isRecording = false
+  updateRecordButton()
+  console.log('Recording stopped')
+}
+
+function updateRecordButton() {
+  const btn = document.getElementById('recordBtn')
+  if (!btn) return
+  if (isRecording) {
+    btn.textContent = '⏹ 録画停止'
+    btn.style.background = '#c62828'
+    // 録画時間の更新
+    const updateTimer = () => {
+      if (!isRecording) return
+      const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000)
+      const m = Math.floor(elapsed / 60).toString().padStart(2, '0')
+      const s = (elapsed % 60).toString().padStart(2, '0')
+      btn.textContent = `⏹ ${m}:${s} 録画中`
+      requestAnimationFrame(updateTimer)
+    }
+    updateTimer()
+  } else {
+    btn.textContent = '📹 録画'
+    btn.style.background = ''
+  }
+}
+
+// ============================================
 // Media Library（IndexedDB でメディアファイル管理）
 // ============================================
 const MEDIA_DB_NAME = 'kaidan-radio-media'
@@ -347,7 +438,7 @@ async function synthesize(text, speakerId = 38) {
 function playAudio(audioBuffer) {
   const source = audioCtx.createBufferSource()
   source.buffer = audioBuffer
-  source.connect(audioCtx.destination)
+  source.connect(masterGain)
   source.connect(analyser)
 
   duckBGM()
@@ -1971,6 +2062,12 @@ async function playSetlist(setlist) {
   status.textContent = `✅ 「${title}」放送終了`
   isPlaying = false
 
+  // 録画中なら自動停止
+  if (isRecording) {
+    await sleep(2000) // エンディングの余韻
+    stopRecording()
+  }
+
   function cleanup() {
     hideSubtitle()
     setEmotion('neutral')
@@ -2014,7 +2111,7 @@ async function startBGM(audioUrl, volume = 0.3) {
 
     bgmGain = audioCtx.createGain()
     bgmGain.gain.value = 0  // フェードインするため0から開始
-    bgmGain.connect(audioCtx.destination)
+    bgmGain.connect(masterGain)
 
     bgmSource = audioCtx.createBufferSource()
     bgmSource.buffer = audioBuffer
@@ -2164,7 +2261,7 @@ async function playJingle(opts) {
     const source = audioCtx.createBufferSource()
     source.buffer = audioBuffer
     source.connect(gainNode)
-    gainNode.connect(audioCtx.destination)
+    gainNode.connect(masterGain)
 
     const startTime = audioCtx.currentTime
 
@@ -2877,3 +2974,14 @@ function toggleLocalCommentBox() {
   })
   closeBtn.addEventListener('click', function() { box.classList.remove('visible') })
 })()
+
+// ============================================
+// 録画ボタン
+// ============================================
+document.getElementById('recordBtn')?.addEventListener('click', () => {
+  if (isRecording) {
+    stopRecording()
+  } else {
+    startRecording()
+  }
+})
