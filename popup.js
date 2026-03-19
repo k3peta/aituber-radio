@@ -1,4 +1,14 @@
 // ============================================
+// 拡張機能ID 表示 & コピー
+// ============================================
+document.getElementById('extId').textContent = chrome.runtime.id
+document.getElementById('copyExtId').addEventListener('click', () => {
+  navigator.clipboard.writeText(chrome.runtime.id)
+  document.getElementById('copyExtId').textContent = '✅ コピー済'
+  setTimeout(() => { document.getElementById('copyExtId').textContent = '📋 コピー' }, 2000)
+})
+
+// ============================================
 // Helper: ビューワータブにメッセージを送る
 // ============================================
 async function sendToViewer(action, data = {}) {
