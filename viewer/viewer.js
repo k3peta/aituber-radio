@@ -116,6 +116,7 @@ let recordingStartTime = 0
 // recording fade control (global)
 let recordFadeAlpha = 1.0
 let recordFadeStart = 0
+let recordSplashImg = null  // スプラッシュ画像（nullなら黒）
 const RECORD_FADE_DURATION = 1500
 
 // 音声出力を録画用にキャプチャするための MediaStreamDestination
@@ -249,13 +250,26 @@ function startRecording() {
       }
     }
 
-    // 5. フェードイン/アウト オーバーレイ（黒）
+    // 5. フェードイン/アウト オーバーレイ
     if (recordFadeAlpha > 0) {
       if (recordFadeStart > 0) {
         recordFadeAlpha = Math.max(0, 1.0 - (Date.now() - recordFadeStart) / RECORD_FADE_DURATION)
       }
-      ctx.fillStyle = `rgba(0, 0, 0, ${recordFadeAlpha})`
-      ctx.fillRect(0, 0, w, h)
+      if (recordSplashImg && recordSplashImg.complete && recordSplashImg.naturalWidth) {
+        // スプラッシュ画像をフェード表示
+        ctx.globalAlpha = recordFadeAlpha
+        const s = Math.min(w / recordSplashImg.naturalWidth, h / recordSplashImg.naturalHeight)
+        const iw = recordSplashImg.naturalWidth * s
+        const ih = recordSplashImg.naturalHeight * s
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(recordSplashImg, (w - iw) / 2, (h - ih) / 2, iw, ih)
+        ctx.globalAlpha = 1.0
+      } else {
+        // 黒画面
+        ctx.fillStyle = `rgba(0, 0, 0, ${recordFadeAlpha})`
+        ctx.fillRect(0, 0, w, h)
+      }
     }
 
     compRAF = requestAnimationFrame(drawCompositeFrame)
@@ -2057,8 +2071,21 @@ async function playSetlist(setlist) {
     }
   }
 
-  // 録画中であればフェードイン開始
+  // 録画中であればフェードイン開始 + スプラッシュ画像
   if (isRecording && recordFadeAlpha > 0) {
+    if (meta.splash) {
+      recordSplashImg = new Image()
+      recordSplashImg.crossOrigin = 'anonymous'
+      recordSplashImg.src = meta.splash
+      // 画像ロード待ち（最大1秒）
+      await new Promise(r => {
+        recordSplashImg.onload = r
+        recordSplashImg.onerror = r
+        setTimeout(r, 1000)
+      })
+    } else {
+      recordSplashImg = null
+    }
     recordFadeStart = Date.now()
   }
 
