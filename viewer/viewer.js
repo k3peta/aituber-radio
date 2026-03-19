@@ -653,6 +653,102 @@ function playAudio(audioBuffer) {
   })
 }
 
+// ============================================
+// AI 読み変換（TTS読み間違い防止）
+// ============================================
+const readingCache = new Map()
+
+/**
+ * 複数行のテキストをAIで読み変換（バッチ処理）
+ * TTSが読み間違えやすい漢字をひらがなに変換する
+ * AIが利用不可の場合は原文をそのまま返す
+ */
+async function convertReadingsForTTS(lines) {
+  // AIが利用可能か確認
+  const settings = await chrome.storage.local.get(['llmApiKey', 'llmProvider'])
+  if (!settings.llmApiKey && settings.llmProvider !== 'ollama') {
+    return lines.map(l => l.text) // AIなし → 原文のまま
+  }
+
+  // キャッシュヒットチェック
+  const results = new Array(lines.length)
+  const uncachedIndices = []
+  const uncachedTexts = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const cached = readingCache.get(lines[i].text)
+    if (cached) {
+      results[i] = cached
+    } else {
+      uncachedIndices.push(i)
+      uncachedTexts.push(lines[i].text)
+    }
+  }
+
+  if (uncachedTexts.length === 0) return results
+
+  // バッチでAI変換（最大20行ずつ）
+  const batchSize = 20
+  for (let b = 0; b < uncachedTexts.length; b += batchSize) {
+    const batch = uncachedTexts.slice(b, b + batchSize)
+    const batchIndices = uncachedIndices.slice(b, b + batchSize)
+
+    try {
+      const numberedLines = batch.map((t, i) => `${i + 1}. ${t}`).join('\n')
+      const response = await callLLM([
+        {
+          role: 'system',
+          content: `あなたはTTS（音声合成）用のテキスト前処理アシスタントです。
+入力された日本語テキストの中で、TTSが読み間違えやすい漢字だけをひらがなに変換してください。
+
+【ルール】
+- 読み間違えやすい漢字のみ変換。それ以外はそのまま残す
+- 文脈から正しい読みを判断する
+- 例: "辛い料理" → "からい料理"（つらい ではなく からい）
+- 例: "今日は一日中" → "きょうはいちにちじゅう"
+- 例: "明日の朝" → "あしたの朝"（あす ではなく あした、口語的に）
+- 例: "生ビール" → "なまビール"（せい ではなく なま）
+- 例: "何人" → "なんにん"（なにじん ではない場合）
+- 例: "大人気" → "だいにんき"（おとなげ ではなく）
+- 問題ない漢字はそのまま残す（例: "食べる" はそのまま）
+- 番号付きで、入力と同じ行数で返す
+- 変換のみ出力し、説明は不要`
+        },
+        {
+          role: 'user',
+          content: numberedLines
+        }
+      ], { maxTokens: 1500, temperature: 0.1 })
+
+      if (response) {
+        const converted = response.split('\n')
+          .filter(l => l.trim())
+          .map(l => l.replace(/^\d+\.\s*/, '').trim())
+
+        for (let i = 0; i < batchIndices.length; i++) {
+          const idx = batchIndices[i]
+          const text = (i < converted.length && converted[i]) ? converted[i] : lines[idx].text
+          results[idx] = text
+          readingCache.set(lines[idx].text, text)
+        }
+        console.log(`📝 読み変換: ${batchIndices.length}行`)
+      } else {
+        // AI応答なし → 原文
+        for (const idx of batchIndices) {
+          results[idx] = lines[idx].text
+        }
+      }
+    } catch (e) {
+      console.warn('読み変換エラー:', e)
+      for (const idx of batchIndices) {
+        results[idx] = lines[idx].text
+      }
+    }
+  }
+
+  return results
+}
+
 /**
  * テキストを合成して再生（従来の speak — 互換用）
  */
@@ -685,21 +781,30 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
   if (audioCtx.state === 'suspended') await audioCtx.resume()
   if (!await checkVoicevox()) return false
 
+  // AI読み変換（バッチ処理 — 再生前に一括変換）
+  const ttsTexts = await convertReadingsForTTS(lines)
+
   let prefetchedBuffer = null
   let prefetchPromise = null
 
-  // 最初の行を即座に先読み開始
+  // 最初の行を即座に先読み開始（変換後テキストで）
   const firstSpeaker = lines[0]?.speaker || defaultSpeaker
-  prefetchPromise = synthesize(lines[0].text, firstSpeaker).catch(() => null)
+  prefetchPromise = synthesize(ttsTexts[0], firstSpeaker).catch(() => null)
 
   for (let i = 0; i < lines.length; i++) {
     if (stopRequested) return true
 
     const line = lines[i]
     const speaker = line.speaker || defaultSpeaker
+    const ttsText = ttsTexts[i] || line.text
 
-    // コールバック（字幕・表情設定）— 合成待ち前に表示
+    // コールバック（字幕・表情設定）— 原文テキストで表示
     if (onLine) onLine(line, i)
+
+    // 読み変換があった場合ログ
+    if (ttsText !== line.text) {
+      console.log(`📝 [${i}] 表示: "${line.text}" → TTS: "${ttsText}"`)
+    }
 
     try {
       let audioBuffer
@@ -715,15 +820,16 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
         prefetchedBuffer = null
         console.log(`🔊 [${i}] buffer hit: 0ms`)
       } else {
-        audioBuffer = await synthesize(line.text, speaker)
+        audioBuffer = await synthesize(ttsText, speaker)
         console.log(`🔊 [${i}] sync synth: ${(performance.now() - t0).toFixed(0)}ms`)
       }
 
-      // 次の行を先読み合成開始（再生と並行）
+      // 次の行を先読み合成開始（変換後テキストで）
       if (i + 1 < lines.length && !stopRequested) {
         const nextLine = lines[i + 1]
         const nextSpeaker = nextLine.speaker || defaultSpeaker
-        prefetchPromise = synthesize(nextLine.text, nextSpeaker).catch(() => null)
+        const nextTtsText = ttsTexts[i + 1] || nextLine.text
+        prefetchPromise = synthesize(nextTtsText, nextSpeaker).catch(() => null)
       }
 
       // 現在の行を再生
