@@ -1553,6 +1553,8 @@ function parseSetlist(mdText) {
 
     if (!currentSegment) continue
     if (!trimmed) continue
+    // HTMLコメントをスキップ
+    if (trimmed.startsWith('<!--')) continue
 
     // [key: value] 形式のプロパティ
     const propMatch = trimmed.match(/^\[(\w+):\s*(.+)\]$/)
@@ -1568,6 +1570,24 @@ function parseSetlist(mdText) {
         currentSegment.type = value
       } else {
         currentSegment.props[key] = value
+      }
+      continue
+    }
+
+    // ### サブセクション見出し → タイプとして解釈
+    if (trimmed.startsWith('### ')) {
+      const subType = trimmed.slice(4).trim().toLowerCase()
+      if (['talk', 'script', 'freetalk', 'reaction', 'comments'].includes(subType)) {
+        // 前のサブセクションを保存して新セグメントを開始
+        if (currentSegment.lines.length > 0 || Object.keys(currentSegment.props).length > 0) {
+          segments.push(currentSegment)
+        }
+        currentSegment = {
+          name: currentSegment.name || subType,
+          type: subType,
+          props: { ...currentSegment.props },  // 親セグメントのpropsを継承
+          lines: []
+        }
       }
       continue
     }
