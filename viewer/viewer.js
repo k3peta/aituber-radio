@@ -1205,7 +1205,8 @@ async function playScript(script) {
       const w = parseInt(sizeMatch[1])
       const h = parseInt(sizeMatch[2])
       chrome.runtime.sendMessage({ action: 'resize-window', width: w, height: h })
-      console.log(`📐 ウィンドウリサイズ: ${w}×${h}`)
+      if (h > w) document.body.classList.add('vertical-mode')
+      console.log(`📐 ウィンドウリサイズ: ${w}×${h}${h > w ? ' (縦動画モード)' : ''}`)
     }
   }
 
@@ -1243,6 +1244,7 @@ async function playScript(script) {
   function cleanup() {
     hideSubtitle()
     setEmotion('neutral')
+    document.body.classList.remove('vertical-mode')
     status.textContent = '⏹️ 再生停止'
     isPlaying = false
     stopRequested = false
@@ -2085,7 +2087,8 @@ async function playSetlist(setlist) {
       const w = parseInt(sizeMatch[1])
       const h = parseInt(sizeMatch[2])
       chrome.runtime.sendMessage({ action: 'resize-window', width: w, height: h })
-      console.log(`📐 ウィンドウリサイズ: ${w}×${h}`)
+      if (h > w) document.body.classList.add('vertical-mode')
+      console.log(`📐 ウィンドウリサイズ: ${w}×${h}${h > w ? ' (縦動画モード)' : ''}`)
     }
   }
 
@@ -2441,6 +2444,7 @@ async function playSetlist(setlist) {
     hideSubtitle()
     setEmotion('neutral')
     stopBGM()
+    document.body.classList.remove('vertical-mode')
     status.textContent = '⏹️ 放送停止'
     isPlaying = false
     stopRequested = false

@@ -97,6 +97,21 @@
       color: #e8e8e8;
     }
 
+    /* 縦動画モード（size 指定で height > width の場合） */
+    body.vertical-mode #subtitle-box {
+      bottom: auto;
+      top: 45%;
+      width: 90%;
+      padding: 28px 24px;
+      font-size: 36px;
+      line-height: 1.6;
+      border-radius: 16px;
+    }
+    body.vertical-mode #subtitle-title {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
     @keyframes subtitleFadeIn {
       from {
         opacity: 0;
