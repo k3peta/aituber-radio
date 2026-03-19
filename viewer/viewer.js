@@ -665,42 +665,43 @@ let readingConversionDisabled = false
  * AIが利用不可の場合は原文をそのまま返す
  */
 async function convertReadingsForTTS(lines) {
-  // 無効化済み or AIなし → 原文のまま
-  if (readingConversionDisabled) return lines.map(l => l.text)
-  const settings = await chrome.storage.local.get(['llmApiKey', 'llmProvider'])
-  if (!settings.llmApiKey && settings.llmProvider !== 'ollama') {
-    return lines.map(l => l.text)
-  }
-
-  // キャッシュヒットチェック
-  const results = new Array(lines.length)
-  const uncachedIndices = []
-  const uncachedTexts = []
-
-  for (let i = 0; i < lines.length; i++) {
-    const cached = readingCache.get(lines[i].text)
-    if (cached) {
-      results[i] = cached
-    } else {
-      uncachedIndices.push(i)
-      uncachedTexts.push(lines[i].text)
+  try {
+    // 無効化済み or AIなし → 原文のまま
+    if (readingConversionDisabled) return lines.map(l => l.text)
+    const settings = await chrome.storage.local.get(['llmApiKey', 'llmProvider'])
+    if (!settings.llmApiKey && settings.llmProvider !== 'ollama') {
+      return lines.map(l => l.text)
     }
-  }
 
-  if (uncachedTexts.length === 0) return results
+    // キャッシュヒットチェック
+    const results = new Array(lines.length)
+    const uncachedIndices = []
+    const uncachedTexts = []
 
-  // バッチでAI変換（最大20行ずつ）
-  const batchSize = 20
-  for (let b = 0; b < uncachedTexts.length; b += batchSize) {
-    const batch = uncachedTexts.slice(b, b + batchSize)
-    const batchIndices = uncachedIndices.slice(b, b + batchSize)
+    for (let i = 0; i < lines.length; i++) {
+      const cached = readingCache.get(lines[i].text)
+      if (cached) {
+        results[i] = cached
+      } else {
+        uncachedIndices.push(i)
+        uncachedTexts.push(lines[i].text)
+      }
+    }
 
-    try {
-      const numberedLines = batch.map((t, i) => `${i + 1}. ${t}`).join('\n')
-      const response = await callLLM([
-        {
-          role: 'system',
-          content: `あなたはTTS（音声合成）用のテキスト前処理アシスタントです。
+    if (uncachedTexts.length === 0) return results
+
+    // バッチでAI変換（最大20行ずつ）
+    const batchSize = 20
+    for (let b = 0; b < uncachedTexts.length; b += batchSize) {
+      const batch = uncachedTexts.slice(b, b + batchSize)
+      const batchIndices = uncachedIndices.slice(b, b + batchSize)
+
+      try {
+        const numberedLines = batch.map((t, i) => `${i + 1}. ${t}`).join('\n')
+        const response = await callLLM([
+          {
+            role: 'system',
+            content: `あなたはTTS（音声合成）用のテキスト前処理アシスタントです。
 入力された日本語テキストの中で、TTSが読み間違えやすい漢字だけをひらがなに変換してください。
 
 【ルール】
@@ -715,41 +716,44 @@ async function convertReadingsForTTS(lines) {
 - 問題ない漢字はそのまま残す（例: "食べる" はそのまま）
 - 番号付きで、入力と同じ行数で返す
 - 変換のみ出力し、説明は不要`
-        },
-        {
-          role: 'user',
-          content: numberedLines
-        }
-      ], { maxTokens: 1500, temperature: 0.1 })
+          },
+          {
+            role: 'user',
+            content: numberedLines
+          }
+        ], { maxTokens: 1500, temperature: 0.1 })
 
-      if (response) {
-        const converted = response.split('\n')
-          .filter(l => l.trim())
-          .map(l => l.replace(/^\d+\.\s*/, '').trim())
+        if (response) {
+          const converted = response.split('\n')
+            .filter(l => l.trim())
+            .map(l => l.replace(/^\d+\.\s*/, '').trim())
 
-        for (let i = 0; i < batchIndices.length; i++) {
-          const idx = batchIndices[i]
-          const text = (i < converted.length && converted[i]) ? converted[i] : lines[idx].text
-          results[idx] = text
-          readingCache.set(lines[idx].text, text)
+          for (let i = 0; i < batchIndices.length; i++) {
+            const idx = batchIndices[i]
+            const text = (i < converted.length && converted[i]) ? converted[i] : lines[idx].text
+            results[idx] = text
+            readingCache.set(lines[idx].text, text)
+          }
+          console.log(`📝 読み変換: ${batchIndices.length}行`)
+        } else {
+          for (const idx of batchIndices) {
+            results[idx] = lines[idx].text
+          }
         }
-        console.log(`📝 読み変換: ${batchIndices.length}行`)
-      } else {
-        // AI応答なし → 原文
+      } catch {
+        readingConversionDisabled = true
         for (const idx of batchIndices) {
           results[idx] = lines[idx].text
         }
       }
-    } catch (e) {
-      console.log('読み変換: API応答なし、スキップ')
-      readingConversionDisabled = true
-      for (const idx of batchIndices) {
-        results[idx] = lines[idx].text
-      }
     }
-  }
 
-  return results
+    return results
+  } catch {
+    // どんなエラーでも原文を返す
+    readingConversionDisabled = true
+    return lines.map(l => l.text)
+  }
 }
 
 /**
