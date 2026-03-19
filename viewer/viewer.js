@@ -176,8 +176,20 @@ function startRecording() {
         ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih)
       }
     } else {
-      // 3. 3Dキャンバス（VRMキャラ）
-      ctx.drawImage(canvas, 0, 0, w, h)
+      // 3. キャラクター描画
+      if (pngtuberMode) {
+        // PNGTuber: 現在表示中の画像を描画
+        const activeImg = pngTalkState ? pngtuberTalk : pngtuberIdle
+        if (activeImg && activeImg.complete && activeImg.naturalWidth) {
+          const s = Math.min(w * 0.9 / activeImg.naturalWidth, h * 0.9 / activeImg.naturalHeight)
+          const iw = activeImg.naturalWidth * s
+          const ih = activeImg.naturalHeight * s
+          ctx.drawImage(activeImg, (w - iw) / 2, h - ih, iw, ih)
+        }
+      } else {
+        // VRM: 3Dキャンバス
+        ctx.drawImage(canvas, 0, 0, w, h)
+      }
     }
 
     // 4. 字幕
@@ -468,20 +480,97 @@ function applyIdlePose(vrm) {
 }
 
 // ============================================
-// LipSync
+// PNGTuber
 // ============================================
-function updateLipSync() {
-  if (!currentVRM) return
+let pngtuberMode = false
+let pngtuberHasBlink = false
+const pngtuberLayer = document.getElementById('pngtuber-layer')
+const pngtuberIdle = document.getElementById('pngtuber-idle')
+const pngtuberTalk = document.getElementById('pngtuber-talk')
+const pngtuberBlink = document.getElementById('pngtuber-blink')
 
+// 瞬きタイマー
+let pngBlinkTimeout = null
+let pngIsBlinking = false
+
+function schedulePNGBlink() {
+  if (!pngtuberMode || !pngtuberHasBlink) return
+  const interval = 3000 + Math.random() * 3000  // 3〜6秒おき
+  pngBlinkTimeout = setTimeout(() => {
+    if (!pngtuberMode) return
+    pngIsBlinking = true
+    // 瞬き表示
+    pngtuberBlink.style.display = 'block'
+    pngtuberIdle.style.display = 'none'
+    setTimeout(() => {
+      pngIsBlinking = false
+      pngtuberBlink.style.display = 'none'
+      if (!pngTalkState) pngtuberIdle.style.display = 'block'
+      schedulePNGBlink()
+    }, 150)  // 150ms だけ目を閉じる
+  }, interval)
+}
+
+function setPNGTuber(idleUrl, talkUrl, blinkUrl) {
+  pngtuberIdle.src = idleUrl
+  pngtuberTalk.src = talkUrl || idleUrl
+  if (blinkUrl) {
+    pngtuberBlink.src = blinkUrl
+    pngtuberHasBlink = true
+  } else {
+    pngtuberHasBlink = false
+  }
+  pngtuberMode = true
+  pngtuberLayer.style.display = 'block'
+  canvas.style.display = 'none'
+  status.textContent = '🖼️ PNGTuber モード'
+  console.log('PNGTuber mode:', { idle: idleUrl, talk: talkUrl || '(=idle)', blink: blinkUrl || 'none' })
+  schedulePNGBlink()
+}
+
+function disablePNGTuber() {
+  pngtuberMode = false
+  pngtuberHasBlink = false
+  pngtuberLayer.style.display = 'none'
+  canvas.style.display = 'block'
+  if (pngBlinkTimeout) clearTimeout(pngBlinkTimeout)
+}
+
+// 音量取得（LipSync と PNGTuber で共有）
+function getAudioVolume() {
   analyser.getFloatTimeDomainData(timeDomainData)
   let volume = 0
   for (let i = 0; i < timeDomainData.length; i++) {
     volume = Math.max(volume, Math.abs(timeDomainData[i]))
   }
-  volume = 1 / (1 + Math.exp(-45 * volume + 5))
-  if (volume < 0.1) volume = 0
+  return volume
+}
 
-  currentVRM.expressionManager?.setValue('aa', volume)
+// ============================================
+// LipSync
+// ============================================
+let pngTalkState = false
+let pngToggleCooldown = 0
+
+function updateLipSync() {
+  const rawVolume = getAudioVolume()
+  const volume = 1 / (1 + Math.exp(-45 * rawVolume + 5))
+  const isTalking = volume > 0.1
+
+  if (pngtuberMode) {
+    // PNGTuber: idle/talk 画像切り替え（パタパタ感を出すためクールダウン付き）
+    const now = Date.now()
+    if (isTalking !== pngTalkState && now > pngToggleCooldown) {
+      pngTalkState = isTalking
+      pngToggleCooldown = now + 80  // 80msクールダウンでパタパタ
+      pngtuberIdle.style.display = isTalking ? 'none' : 'block'
+      pngtuberTalk.style.display = isTalking ? 'block' : 'none'
+    }
+  } else if (currentVRM) {
+    // VRM: 口の開き具合を設定
+    const mouthValue = volume < 0.1 ? 0 : volume
+    currentVRM.expressionManager?.setValue('aa', mouthValue)
+  }
 }
 
 // ============================================
@@ -2565,7 +2654,10 @@ function animate() {
 
   controls.update()
 
-  if (currentVRM) {
+  // PNGTuber or VRM のリップシンク
+  if (pngtuberMode) {
+    updateLipSync()
+  } else if (currentVRM) {
     updateLipSync()
     updateBlink(delta)
     updateIdleSway(delta)
@@ -2957,18 +3049,47 @@ document.body.addEventListener('dragleave', () => {
 document.body.addEventListener('drop', (e) => {
   e.preventDefault()
   dropZone.style.display = 'none'
-  const file = e.dataTransfer.files[0]
-  if (!file) return
+  const files = Array.from(e.dataTransfer.files)
+  if (!files.length) return
 
-  if (file.name.endsWith('.vrm')) {
-    loadVRM(URL.createObjectURL(file))
-  } else if (file.name.endsWith('.md') || file.name.endsWith('.txt')) {
-    file.text().then(text => {
+  // VRM
+  const vrmFile = files.find(f => f.name.endsWith('.vrm'))
+  if (vrmFile) {
+    disablePNGTuber()
+    loadVRM(URL.createObjectURL(vrmFile))
+    return
+  }
+
+  // 台本
+  const scriptFile = files.find(f => f.name.endsWith('.md') || f.name.endsWith('.txt'))
+  if (scriptFile) {
+    scriptFile.text().then(text => {
       const script = parseScript(text)
       playScript(script)
     })
-  } else if (file.type.startsWith('image/')) {
-    changeBackground(URL.createObjectURL(file))
+    return
+  }
+
+  // PNG 画像 → PNGTuber or 背景
+  const imageFiles = files.filter(f => f.type.startsWith('image/'))
+  if (imageFiles.length >= 2) {
+    // 2〜3枚: ファイル名で自動判別
+    const talkFile = imageFiles.find(f => /talk|口開|open|speak/i.test(f.name))
+    const blinkFile = imageFiles.find(f => /blink|瞬き|close|目閉/i.test(f.name))
+    const idleFile = imageFiles.find(f => f !== talkFile && f !== blinkFile) || imageFiles[0]
+    const talk = talkFile || imageFiles.find(f => f !== idleFile && f !== blinkFile) || imageFiles[1]
+    setPNGTuber(
+      URL.createObjectURL(idleFile),
+      URL.createObjectURL(talk),
+      blinkFile ? URL.createObjectURL(blinkFile) : null
+    )
+  } else if (imageFiles.length === 1) {
+    // 1枚: Shiftキー押しながらドロップ → PNGTuber、そうでなければ背景
+    if (e.shiftKey) {
+      setPNGTuber(URL.createObjectURL(imageFiles[0]))
+    } else {
+      changeBackground(URL.createObjectURL(imageFiles[0]))
+    }
   }
 })
 
