@@ -12,7 +12,7 @@ const subtitleText = document.getElementById('subtitle-text')
 // ============================================
 // Scene Setup
 // ============================================
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(window.devicePixelRatio)
 renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -114,9 +114,9 @@ let isRecording = false
 let recordingStartTime = 0
 
 // recording fade control (global)
-let recordFadeAlpha = 1.0
+let recordFadeAlpha = 0  // デフォルトはフェードなし
 let recordFadeStart = 0
-let recordSplashImg = null  // スプラッシュ画像（nullなら黒）
+let recordSplashImg = null
 const RECORD_FADE_DURATION = 1500
 
 // 音声出力を録画用にキャプチャするための MediaStreamDestination
@@ -141,35 +141,41 @@ function startRecording() {
   const bgStyle = getComputedStyle(bgLayer)
   const bgUrl = bgStyle.backgroundImage.replace(/url\(["']?(.+?)["']?\)/, '$1')
   const bgImg = new Image()
-  bgImg.crossOrigin = 'anonymous'
+  if (!bgUrl.startsWith('chrome-extension://')) {
+    bgImg.crossOrigin = 'anonymous'
+  }
   bgImg.src = bgUrl
+  bgImg.onload = () => console.log('Comp: bg loaded', bgImg.naturalWidth, bgImg.naturalHeight)
+  bgImg.onerror = (e) => console.error('Comp: bg load error', e)
 
   // 合成フレーム描画
   let compRAF = null
+  let debugLogged = false
   function drawCompositeFrame() {
     const w = compCanvas.width
     const h = compCanvas.height
 
     // 1. 背景
-    ctx.fillStyle = '#0a0a0a'
+    ctx.fillStyle = '#0a0a1a'
     ctx.fillRect(0, 0, w, h)
-    if (bgImg.complete && bgImg.naturalWidth) {
-      // cover fit
-      const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight)
-      const sw = bgImg.naturalWidth * scale
-      const sh = bgImg.naturalHeight * scale
-      ctx.drawImage(bgImg, (w - sw) / 2, (h - sh) / 2, sw, sh)
-      // グラデーションオーバーレイ
-      const grad = ctx.createLinearGradient(0, 0, 0, h)
-      grad.addColorStop(0, 'rgba(0,0,0,0.15)')
-      grad.addColorStop(0.4, 'rgba(0,0,0,0.05)')
-      grad.addColorStop(0.8, 'rgba(0,0,0,0.3)')
-      grad.addColorStop(1, 'rgba(0,0,0,0.7)')
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, w, h)
+    try {
+      if (bgImg.complete && bgImg.naturalWidth) {
+        const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight)
+        const sw = bgImg.naturalWidth * scale
+        const sh = bgImg.naturalHeight * scale
+        ctx.drawImage(bgImg, (w - sw) / 2, (h - sh) / 2, sw, sh)
+        // グラデーションオーバーレイ
+        const grad = ctx.createLinearGradient(0, 0, 0, h)
+        grad.addColorStop(0, 'rgba(0,0,0,0.15)')
+        grad.addColorStop(0.4, 'rgba(0,0,0,0.05)')
+        grad.addColorStop(0.8, 'rgba(0,0,0,0.3)')
+        grad.addColorStop(1, 'rgba(0,0,0,0.7)')
+        ctx.fillStyle = grad
+        ctx.fillRect(0, 0, w, h)
+      }
+    } catch (e) {
+      if (!debugLogged) { console.error('Comp: bg draw error', e); debugLogged = true }
     }
-
-    // 2. ジングルオーバーレイ
     const overlay = document.getElementById('jingle-overlay')
     const overlayVisible = overlay && overlay.style.display === 'flex' && parseFloat(overlay.style.opacity) > 0.3
     if (overlayVisible) {
