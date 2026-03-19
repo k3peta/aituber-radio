@@ -127,7 +127,7 @@ const masterGain = audioCtx.createGain()
 masterGain.connect(audioCtx.destination)
 masterGain.connect(recordDest)
 
-function startRecording() {
+async function startRecording() {
   if (isRecording) return
 
   // 合成用オフスクリーンキャンバス
@@ -136,21 +136,23 @@ function startRecording() {
   compCanvas.height = 1080
   const ctx = compCanvas.getContext('2d')
 
-  // 背景画像を取得
-  const bgLayer = document.getElementById('bg-layer')
-  const bgStyle = getComputedStyle(bgLayer)
-  const bgUrl = bgStyle.backgroundImage.replace(/url\(["']?(.+?)["']?\)/, '$1')
-  const bgImg = new Image()
-  if (!bgUrl.startsWith('chrome-extension://')) {
-    bgImg.crossOrigin = 'anonymous'
+  // 背景画像を取得（fetch → createImageBitmap でCORS回避）
+  let bgBitmap = null
+  try {
+    const bgLayer = document.getElementById('bg-layer')
+    const bgUrl = getComputedStyle(bgLayer).backgroundImage.replace(/url\(["']?(.+?)["']?\)/, '$1')
+    if (bgUrl && bgUrl !== 'none') {
+      const res = await fetch(bgUrl)
+      const blob = await res.blob()
+      bgBitmap = await createImageBitmap(blob)
+      console.log('Comp: bg loaded via fetch', bgBitmap.width, bgBitmap.height)
+    }
+  } catch (e) {
+    console.warn('Comp: bg load failed, using solid color', e)
   }
-  bgImg.src = bgUrl
-  bgImg.onload = () => console.log('Comp: bg loaded', bgImg.naturalWidth, bgImg.naturalHeight)
-  bgImg.onerror = (e) => console.error('Comp: bg load error', e)
 
   // 合成フレーム描画
   let compRAF = null
-  let debugLogged = false
   function drawCompositeFrame() {
     const w = compCanvas.width
     const h = compCanvas.height
@@ -158,23 +160,18 @@ function startRecording() {
     // 1. 背景
     ctx.fillStyle = '#0a0a1a'
     ctx.fillRect(0, 0, w, h)
-    try {
-      if (bgImg.complete && bgImg.naturalWidth) {
-        const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight)
-        const sw = bgImg.naturalWidth * scale
-        const sh = bgImg.naturalHeight * scale
-        ctx.drawImage(bgImg, (w - sw) / 2, (h - sh) / 2, sw, sh)
-        // グラデーションオーバーレイ
-        const grad = ctx.createLinearGradient(0, 0, 0, h)
-        grad.addColorStop(0, 'rgba(0,0,0,0.15)')
-        grad.addColorStop(0.4, 'rgba(0,0,0,0.05)')
-        grad.addColorStop(0.8, 'rgba(0,0,0,0.3)')
-        grad.addColorStop(1, 'rgba(0,0,0,0.7)')
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, w, h)
-      }
-    } catch (e) {
-      if (!debugLogged) { console.error('Comp: bg draw error', e); debugLogged = true }
+    if (bgBitmap) {
+      const scale = Math.max(w / bgBitmap.width, h / bgBitmap.height)
+      const sw = bgBitmap.width * scale
+      const sh = bgBitmap.height * scale
+      ctx.drawImage(bgBitmap, (w - sw) / 2, (h - sh) / 2, sw, sh)
+      // 軽いグラデーションオーバーレイ
+      const grad = ctx.createLinearGradient(0, 0, 0, h)
+      grad.addColorStop(0, 'rgba(0,0,0,0.1)')
+      grad.addColorStop(0.5, 'rgba(0,0,0,0)')
+      grad.addColorStop(1, 'rgba(0,0,0,0.4)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
     }
     const overlay = document.getElementById('jingle-overlay')
     const overlayVisible = overlay && overlay.style.display === 'flex' && parseFloat(overlay.style.opacity) > 0.3
