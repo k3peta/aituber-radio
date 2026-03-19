@@ -95,11 +95,15 @@ chrome.runtime.onMessageExternal.addListener(async (msg, sender, sendResponse) =
       // メディア URL マッピングを適用
       let resolvedText = text
       if (card.media) {
+        // siteOrigin: カードの baseUrl からサイトルートを算出
+        // 例: "https://k3peta.github.io/aituber-radio-station/cards/yofukashi"
+        //   → "https://k3peta.github.io/aituber-radio-station"
+        const siteOrigin = card.siteOrigin || (card.baseUrl ? card.baseUrl.replace(/\/cards\/[^/]+$/, '') : '')
         for (const [localPath, webUrl] of Object.entries(card.media)) {
-          // セットリスト内のローカルパスを Web URL に置換
           let fullUrl = webUrl
-          if (card.baseUrl && !webUrl.startsWith('http')) {
-            fullUrl = card.baseUrl + '/' + webUrl
+          if (!webUrl.startsWith('http')) {
+            // assets/ はサイトルートにあるので siteOrigin から解決
+            fullUrl = siteOrigin + '/' + webUrl
           }
           resolvedText = resolvedText.replaceAll(localPath, fullUrl)
         }
