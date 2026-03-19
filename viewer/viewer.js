@@ -315,8 +315,15 @@ function startRecording() {
   mediaRecorder.start(1000)
   isRecording = true
   recordingStartTime = Date.now()
-  recordFadeAlpha = 1.0  // 黒画面から開始
-  recordFadeStart = 0    // まだフェードイン開始しない
+  if (isPlaying) {
+    // 再生中に録画開始 → フェードなし（即表示）
+    recordFadeAlpha = 0
+    recordFadeStart = 0
+  } else {
+    // 再生前に録画開始 → 黒画面から開始
+    recordFadeAlpha = 1.0
+    recordFadeStart = 0
+  }
   updateRecordButton()
   console.log('Recording started (composite canvas)')
 }
