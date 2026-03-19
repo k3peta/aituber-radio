@@ -165,7 +165,8 @@ function startRecording() {
 
     // 2. ジングルオーバーレイ
     const overlay = document.getElementById('jingle-overlay')
-    if (overlay && overlay.classList.contains('visible')) {
+    const overlayVisible = overlay && overlay.style.display === 'flex' && parseFloat(overlay.style.opacity) > 0.3
+    if (overlayVisible) {
       const img = document.getElementById('jingle-image')
       if (img && img.complete && img.naturalWidth) {
         ctx.fillStyle = '#000'
@@ -178,7 +179,6 @@ function startRecording() {
     } else {
       // 3. キャラクター描画
       if (pngtuberMode) {
-        // PNGTuber: 現在表示中の画像を描画
         const activeImg = pngTalkState ? pngtuberTalk : pngtuberIdle
         if (activeImg && activeImg.complete && activeImg.naturalWidth) {
           const s = Math.min(w * 0.9 / activeImg.naturalWidth, h * 0.9 / activeImg.naturalHeight)
