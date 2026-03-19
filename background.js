@@ -120,3 +120,17 @@ chrome.runtime.onMessageExternal.addListener(async (msg, sender, sendResponse) =
     return true  // async response
   }
 })
+
+// ============================================
+// 内部メッセージハンドラー（ビューワーからの指示）
+// ============================================
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'resize-window' && msg.width && msg.height) {
+    chrome.windows.update(sender.tab.windowId, {
+      width: msg.width,
+      height: msg.height
+    }).then(() => sendResponse({ ok: true }))
+    .catch(e => sendResponse({ error: e.message }))
+    return true
+  }
+})

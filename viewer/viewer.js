@@ -1201,7 +1201,7 @@ async function playScript(script) {
     if (sizeMatch) {
       const w = parseInt(sizeMatch[1])
       const h = parseInt(sizeMatch[2])
-      window.resizeTo(w, h)
+      chrome.runtime.sendMessage({ action: 'resize-window', width: w, height: h })
       console.log(`📐 ウィンドウリサイズ: ${w}×${h}`)
     }
   }
@@ -2081,7 +2081,7 @@ async function playSetlist(setlist) {
     if (sizeMatch) {
       const w = parseInt(sizeMatch[1])
       const h = parseInt(sizeMatch[2])
-      window.resizeTo(w, h)
+      chrome.runtime.sendMessage({ action: 'resize-window', width: w, height: h })
       console.log(`📐 ウィンドウリサイズ: ${w}×${h}`)
     }
   }
