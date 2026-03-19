@@ -1985,6 +1985,10 @@ async function startBGM(audioUrl, volume = 0.3) {
 
   try {
     const res = await fetch(audioUrl)
+    if (!res.ok) {
+      console.error('BGM fetch failed:', res.status, audioUrl)
+      return
+    }
     const arrayBuffer = await res.arrayBuffer()
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
 
@@ -2004,7 +2008,7 @@ async function startBGM(audioUrl, volume = 0.3) {
 
     console.log('BGM started:', audioUrl, 'volume:', volume)
   } catch (e) {
-    console.error('BGM start error:', e)
+    console.error('BGM start error:', e, 'url:', audioUrl)
     status.textContent = `❌ BGM読み込み失敗: ${e.message}`
   }
 }
