@@ -40,3 +40,83 @@ chrome.commands.onCommand.addListener(async (command) => {
       break
   }
 })
+
+// ============================================
+// External Message Handler (Station サイトからの指示)
+// ============================================
+chrome.runtime.onMessageExternal.addListener(async (msg, sender, sendResponse) => {
+  console.log('External message:', msg, 'from:', sender.origin)
+
+  // 拡張機能の存在確認
+  if (msg.action === 'check-installed') {
+    sendResponse({ installed: true, version: chrome.runtime.getManifest().version })
+    return
+  }
+
+  // カード再生
+  if (msg.action === 'play-card') {
+    const card = msg.card
+    if (!card || !card.setlist) {
+      sendResponse({ error: 'Invalid card' })
+      return
+    }
+
+    const viewerUrl = chrome.runtime.getURL('viewer/index.html')
+    const tabs = await chrome.tabs.query({})
+    let viewerTab = tabs.find(t => t.url && t.url.startsWith(viewerUrl))
+
+    // ビューワーがなければ開く
+    if (!viewerTab) {
+      viewerTab = await chrome.tabs.create({ url: viewerUrl })
+      // 読み込み完了を待つ
+      await new Promise(resolve => {
+        chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+          if (tabId === viewerTab.id && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener)
+            setTimeout(resolve, 2000)
+          }
+        })
+      })
+    } else {
+      chrome.tabs.update(viewerTab.id, { active: true })
+    }
+
+    // セットリストの URL を解決（相対パスならカードの baseUrl を付ける）
+    let setlistUrl = card.setlist
+    if (card.baseUrl && !setlistUrl.startsWith('http')) {
+      setlistUrl = card.baseUrl + '/' + setlistUrl
+    }
+
+    // セットリストを取得
+    try {
+      const res = await fetch(setlistUrl)
+      const text = await res.text()
+
+      // メディア URL マッピングを適用
+      let resolvedText = text
+      if (card.media) {
+        for (const [localPath, webUrl] of Object.entries(card.media)) {
+          // セットリスト内のローカルパスを Web URL に置換
+          let fullUrl = webUrl
+          if (card.baseUrl && !webUrl.startsWith('http')) {
+            fullUrl = card.baseUrl + '/' + webUrl
+          }
+          resolvedText = resolvedText.replaceAll(localPath, fullUrl)
+        }
+      }
+
+      // ストレージに保存してビューワーに再生指示
+      await chrome.storage.local.set({
+        lastScript: resolvedText,
+        lastScriptName: card.title || 'Station Card'
+      })
+
+      chrome.tabs.sendMessage(viewerTab.id, { action: 'play-default-setlist' })
+      sendResponse({ ok: true })
+    } catch (e) {
+      console.error('Card play error:', e)
+      sendResponse({ error: e.message })
+    }
+    return true  // async response
+  }
+})

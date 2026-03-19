@@ -180,6 +180,11 @@ const localFiles = new Map()
 async function resolveMediaURL(filename) {
   if (!filename) return null
 
+  // 0. 外部 URL（http / https） → そのまま返す
+  if (filename.startsWith('http://') || filename.startsWith('https://')) {
+    return filename
+  }
+
   // 1. メモリMap（フォルダ読み込み済みファイル）— 最優先
   if (localFiles.has(filename)) {
     return localFiles.get(filename)
