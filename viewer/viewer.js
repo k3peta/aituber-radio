@@ -2030,6 +2030,17 @@ async function playSetlist(setlist) {
   currentSpeedScale = globalSpeed
   const pauseBetween = meta.pause_between ? parseInt(meta.pause_between) : 1000
 
+  // 開始ディレイ（OBS切替用）
+  const delayData = await chrome.storage.local.get(['startDelay'])
+  const startDelay = delayData.startDelay || 0
+  if (startDelay > 0) {
+    for (let i = startDelay; i > 0; i--) {
+      if (stopRequested) { isPlaying = false; return }
+      status.textContent = `⏱️ 「${title}」${i}秒後に開始…`
+      await sleep(1000)
+    }
+  }
+
   status.textContent = `📻 「${title}」放送開始`
 
   for (let si = 0; si < segments.length; si++) {
