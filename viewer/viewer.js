@@ -124,13 +124,123 @@ masterGain.connect(recordDest)
 function startRecording() {
   if (isRecording) return
 
-  // キャンバスのストリーム（30fps）
-  const canvasStream = canvas.captureStream(30)
+  // 合成用オフスクリーンキャンバス
+  const compCanvas = document.createElement('canvas')
+  compCanvas.width = 1920
+  compCanvas.height = 1080
+  const ctx = compCanvas.getContext('2d')
 
-  // 音声チャネルの取得
+  // 背景画像を取得
+  const bgLayer = document.getElementById('bg-layer')
+  const bgStyle = getComputedStyle(bgLayer)
+  const bgUrl = bgStyle.backgroundImage.replace(/url\(["']?(.+?)["']?\)/, '$1')
+  const bgImg = new Image()
+  bgImg.crossOrigin = 'anonymous'
+  bgImg.src = bgUrl
+
+  // 合成フレーム描画
+  let compRAF = null
+  function drawCompositeFrame() {
+    const w = compCanvas.width
+    const h = compCanvas.height
+
+    // 1. 背景
+    ctx.fillStyle = '#0a0a0a'
+    ctx.fillRect(0, 0, w, h)
+    if (bgImg.complete && bgImg.naturalWidth) {
+      // cover fit
+      const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight)
+      const sw = bgImg.naturalWidth * scale
+      const sh = bgImg.naturalHeight * scale
+      ctx.drawImage(bgImg, (w - sw) / 2, (h - sh) / 2, sw, sh)
+      // グラデーションオーバーレイ
+      const grad = ctx.createLinearGradient(0, 0, 0, h)
+      grad.addColorStop(0, 'rgba(0,0,0,0.15)')
+      grad.addColorStop(0.4, 'rgba(0,0,0,0.05)')
+      grad.addColorStop(0.8, 'rgba(0,0,0,0.3)')
+      grad.addColorStop(1, 'rgba(0,0,0,0.7)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
+    }
+
+    // 2. ジングルオーバーレイ
+    const overlay = document.getElementById('jingle-overlay')
+    if (overlay && overlay.classList.contains('visible')) {
+      const img = document.getElementById('jingle-image')
+      if (img && img.complete && img.naturalWidth) {
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, w, h)
+        const s = Math.min(w / img.naturalWidth, h / img.naturalHeight)
+        const iw = img.naturalWidth * s
+        const ih = img.naturalHeight * s
+        ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih)
+      }
+    } else {
+      // 3. 3Dキャンバス（VRMキャラ）
+      ctx.drawImage(canvas, 0, 0, w, h)
+    }
+
+    // 4. 字幕
+    const subBox = document.getElementById('subtitle-box')
+    if (subBox && subBox.classList.contains('visible')) {
+      const title = document.getElementById('subtitle-title')?.textContent || ''
+      const text = document.getElementById('subtitle-text')?.textContent || ''
+
+      const boxW = w * 0.85
+      const boxX = (w - boxW) / 2
+      const boxY = h - 160
+      const boxH = 120
+
+      // 字幕背景
+      ctx.fillStyle = 'rgba(10, 10, 26, 0.88)'
+      ctx.beginPath()
+      ctx.roundRect(boxX, boxY, boxW, boxH, 12)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(233, 69, 96, 0.3)'
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      // タイトル
+      if (title) {
+        ctx.font = '700 22px "Noto Sans JP", sans-serif'
+        ctx.fillStyle = '#e94560'
+        ctx.fillText(title, boxX + 32, boxY + 32)
+      }
+
+      // テキスト
+      if (text) {
+        ctx.font = '400 26px "Noto Sans JP", sans-serif'
+        ctx.fillStyle = '#e8e8e8'
+        // 複数行に分割
+        const maxLineWidth = boxW - 64
+        const lines = []
+        let currentLine = ''
+        for (const char of text) {
+          const testLine = currentLine + char
+          if (ctx.measureText(testLine).width > maxLineWidth) {
+            lines.push(currentLine)
+            currentLine = char
+          } else {
+            currentLine = testLine
+          }
+        }
+        if (currentLine) lines.push(currentLine)
+        const lineY = title ? boxY + 62 : boxY + 42
+        for (let i = 0; i < Math.min(lines.length, 2); i++) {
+          ctx.fillText(lines[i], boxX + 32, lineY + i * 34)
+        }
+      }
+    }
+
+    compRAF = requestAnimationFrame(drawCompositeFrame)
+  }
+
+  drawCompositeFrame()
+
+  // 合成キャンバスのストリーム
+  const canvasStream = compCanvas.captureStream(30)
   const audioTracks = recordDest.stream.getAudioTracks()
 
-  // 合成ストリーム
   const combinedStream = new MediaStream([
     ...canvasStream.getVideoTracks(),
     ...audioTracks
@@ -139,7 +249,7 @@ function startRecording() {
   recordedChunks = []
   mediaRecorder = new MediaRecorder(combinedStream, {
     mimeType: 'video/webm;codecs=vp9,opus',
-    videoBitsPerSecond: 4000000  // 4 Mbps
+    videoBitsPerSecond: 4000000
   })
 
   mediaRecorder.ondataavailable = (e) => {
@@ -147,6 +257,9 @@ function startRecording() {
   }
 
   mediaRecorder.onstop = () => {
+    // 合成ループ停止
+    if (compRAF) cancelAnimationFrame(compRAF)
+
     const blob = new Blob(recordedChunks, { type: 'video/webm' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -159,11 +272,11 @@ function startRecording() {
     console.log('Recording saved:', a.download, `${(blob.size / 1024 / 1024).toFixed(1)} MB`)
   }
 
-  mediaRecorder.start(1000) // 1秒ごとにデータ回収
+  mediaRecorder.start(1000)
   isRecording = true
   recordingStartTime = Date.now()
   updateRecordButton()
-  console.log('Recording started')
+  console.log('Recording started (composite canvas)')
 }
 
 function stopRecording() {
