@@ -194,11 +194,29 @@ function stopRecording() {
 
 function updateRecordButton() {
   const btn = document.getElementById('recordBtn')
+  const statusEl = document.getElementById('status')
+  const hint = document.getElementById('controls-hint')
   if (!btn) return
   if (isRecording) {
     btn.textContent = '⏹ 録画停止'
     btn.style.background = '#c62828'
-    // 録画時間の更新
+
+    // 2秒後にボタンをフェードアウト
+    setTimeout(() => {
+      if (isRecording) btn.style.opacity = '0'
+    }, 2000)
+    // ホバーで再表示
+    btn.onmouseenter = () => { btn.style.opacity = '1' }
+    btn.onmouseleave = () => { if (isRecording) btn.style.opacity = '0' }
+
+    // ステータスバー・ヒントを非表示
+    if (statusEl) statusEl.style.display = 'none'
+    if (hint) hint.style.display = 'none'
+
+    // カーソル非表示
+    document.body.style.cursor = 'none'
+
+    // 録画時間の更新（ボタンホバー時にのみ見える）
     const updateTimer = () => {
       if (!isRecording) return
       const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000)
@@ -211,6 +229,14 @@ function updateRecordButton() {
   } else {
     btn.textContent = '📹 録画'
     btn.style.background = ''
+    btn.style.opacity = '1'
+    btn.onmouseenter = null
+    btn.onmouseleave = null
+
+    // UI復帰
+    if (statusEl) statusEl.style.display = ''
+    if (hint) hint.style.display = ''
+    document.body.style.cursor = ''
   }
 }
 
