@@ -3912,77 +3912,80 @@ speed: 0.95
 ---
 
 `
-    // === オープニング: jingle1 + opening.jpg + 挨拶をspeakAt ===
+    // === オープニングジングル: jingle1 + opening.jpg + speakAt挨拶 ===
     const firstSection = sections[0] ? sections[0].trim() : ''
     const firstLines = firstSection.split('\n')
     const firstHeading = firstLines[0].replace(/^#+\s*/, '')
-    // 挨拶の最初の1行をspeakAtテキストにする
     const greetLine = firstLines.find(l => l.trim() && !l.startsWith('#') && !l.startsWith('[')) || `${greeting}！怪談ちゃんの${showName}！`
 
     if (availableJingles.length > 0) {
-      setlistMd += `# オープニング
+      setlistMd += `# オープニングジングル
 [type: jingle]
 [file: ${availableJingles[0]}]${openingFile ? `\n[overlay: ${openingFile}]` : ''}
-[speakAt: 2]
+[duration: 30]
+[fadeOut: 3]
+[speakAt: 3.5]
 [speakText: ${greetLine.trim()}]
 [speakSpeaker: 38]
 
 `
     }
 
-    // === 挨拶セクション（残りの行）+ BGM開始 ===
+    // === オープニングトーク（残りの挨拶行）+ BGM開始 ===
     const restOfFirst = firstLines.slice(1).filter(l => l.trim() && !l.startsWith('[type')).join('\n')
     if (restOfFirst.trim()) {
-      setlistMd += `# ${firstHeading}
+      setlistMd += `# オープニング
 [type: talk]${bgmFile ? `\n[bgm: ${bgmFile}]\n[bgmVolume: 0.15]` : ''}
 ${restOfFirst}
 
 `
     }
 
-    // === 各コーナー: ジングル → talk ===
+    // === 各コーナー: コーナージングル(speakAt付き) → talk ===
     for (let i = 1; i < sections.length; i++) {
       const section = sections[i].trim()
       if (!section) continue
 
       const isLastSection = (i === sections.length - 1)
 
-      // コーナー前にジングル（最後のセクションにはジングルなし → エンディングで処理）
+      // コーナー名を取得
+      const sectionLines = section.split('\n')
+      const sectionName = sectionLines[0].replace(/^#+\s*/, '') || `コーナー${i}`
+      const sectionBody = sectionLines.slice(1).join('\n')
+
+      // コーナー前にジングル（speakAtでコーナー名を読む）
       if (cornerJingle && !isLastSection) {
-        setlistMd += `# ジングル
+        setlistMd += `# コーナージングル
 [type: jingle]
 [file: ${cornerJingle}]
-[duration: 5]
-[fadeOut: 1.5]
+[duration: 10.5]
+[fadeOut: 3.5]
+[speakAt: 4]
+[speakText: ${sectionName}]
+[speakSpeaker: 38]
 
 `
       }
 
       // コーナー本体
-      if (section.startsWith('#')) {
-        const lines = section.split('\n')
-        const heading = lines[0]
-        const body = lines.slice(1).join('\n')
-        setlistMd += `${heading}
+      setlistMd += `# ${sectionName}
 [type: talk]
-${body}
+${sectionBody}
 
 `
-      } else {
-        setlistMd += `# コーナー${i}
-[type: talk]
-${section}
-
-`
-      }
     }
 
-    // === エンディング: jingle1 + ending.jpg ===
-    if (availableJingles.length > 0 || endingFile) {
-      setlistMd += `# エンディング
+    // === エンディングジングル: jingle1 + ending/opening.jpg + speakAt ===
+    if (availableJingles.length > 0) {
+      const edOverlay = endingFile || openingFile
+      setlistMd += `# エンディングジングル
 [type: jingle]
-[file: ${availableJingles[0] || cornerJingle}]${endingFile ? `\n[overlay: ${endingFile}]` : (openingFile ? `\n[overlay: ${openingFile}]` : '')}
-[bgmstop: true]
+[file: ${availableJingles[0]}]${edOverlay ? `\n[overlay: ${edOverlay}]` : ''}
+[duration: 20]
+[fadeOut: 3]
+[speakAt: 3.5]
+[speakText: 怪談ちゃんの${showName}、また次回！]
+[speakSpeaker: 38]
 
 `
     }
