@@ -18,6 +18,7 @@ VRM / PNGTuber キャラクター × VOICEVOX / SBV2 / ブラウザ内蔵TTS × 
 - [録画機能](#-録画機能)
 - [PNGTuber](#-pngtuber)
 - [WebM → MP4 変換ツール](#-webm--mp4-変換ツール)
+- [CLI 自動録画](#-cli-自動録画)
 - [Radio Station 連携](#-radio-station-連携)
 - [プロジェクトフォルダの構成](#-プロジェクトフォルダの構成)
 - [TTS エンジン設定](#-tts-エンジン設定)
@@ -350,6 +351,56 @@ bash tools/webm2mp4.sh *.webm
 - `+faststart` でストリーミング最適化
 
 > 要件: ffmpeg がインストールされていること（`brew install ffmpeg`）
+
+---
+
+## 🤖 CLI 自動録画
+
+コマンドひとつで **番組再生 → 録画 → MP4変換** を自動実行。AIエージェントからの呼び出しにも対応。
+
+### セットアップ
+
+```bash
+# 拡張機能IDを保存（初回のみ）
+echo "YOUR_EXTENSION_ID" > ~/.aituber-radio-ext-id
+# chrome://extensions でIDを確認
+```
+
+### 使い方
+
+```bash
+# Station カードから録画
+bash tools/radio-cli.sh news_morning      # 朝イチニュース
+bash tools/radio-cli.sh short_trivia      # 雑学60秒
+bash tools/radio-cli.sh ohayou            # おはようラジオ
+
+# ローカル台本から録画
+bash tools/radio-cli.sh --local ~/project/setlist.md
+
+# WebMのみ（MP4変換なし）
+bash tools/radio-cli.sh short_trivia --no-convert
+```
+
+### パイプライン
+
+```
+CLI → ローカルHTTPサーバー起動
+  → ランチャーHTML → chrome.runtime.sendMessage
+  → background.js → ビューワータブ作成
+  → 台本+メディア取得 → 自動再生+Canvas録画
+  → 放送終了 → WebM自動ダウンロード
+  → WebM→MP4変換 → 完了
+```
+
+### 同梱ファイル
+
+| ファイル | 説明 |
+|---------|------|
+| `tools/radio-cli.sh` | メインCLIスクリプト |
+| `tools/cors-server.py` | CORS対応HTTPサーバー |
+| `tools/cli-launcher.html` | 拡張機能連携ランチャー |
+| `tools/webm2mp4.sh` | WebM→MP4変換 |
+| `tools/webm2mp4_gui.py` | GUI変換ツール生成 |
 
 ---
 
