@@ -18,7 +18,7 @@ const path = require('path')
 // ============================================
 const LLM_API_URL = process.env.LLM_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 const LLM_API_KEY = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || ''
-const LLM_MODEL = process.env.LLM_MODEL || 'gemini-2.0-flash'
+const LLM_MODEL = process.env.LLM_MODEL || 'gemini-3.1-flash-lite-preview'
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, '..', 'output')
 
 // ============================================
