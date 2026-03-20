@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><title>AITuber Radio CLI Launcher</title></head>
+<body>
+<div id="status">Launching...</div>
+<script>
+  const params = new URLSearchParams(location.search)
+  const extId = params.get('ext')
+  const card = params.get('card')
+  const setlist = params.get('setlist')
+  const record = params.get('record') === 'true'
+  const el = document.getElementById('status')
+
+  if (!extId) {
+    el.textContent = 'Error: ext parameter required'
+  } else {
+    const msg = { action: 'cli-play', record }
+    if (card) msg.card = card
+    if (setlist) msg.setlist = setlist
+
+    chrome.runtime.sendMessage(extId, msg, (response) => {
+      if (chrome.runtime.lastError) {
+        el.textContent = 'Error: ' + chrome.runtime.lastError.message
+      } else if (response && response.ok) {
+        el.textContent = 'Launched! tabId=' + response.tabId
+        // ランチャーページは閉じる
+        setTimeout(() => window.close(), 1000)
+      } else {
+        el.textContent = 'Error: ' + JSON.stringify(response)
+      }
+    })
+  }
+</script>
+</body>
+</html>

@@ -119,6 +119,53 @@ chrome.runtime.onMessageExternal.addListener(async (msg, sender, sendResponse) =
     }
     return true  // async response
   }
+
+  // CLI からの自動再生+録画リクエスト
+  if (msg.action === 'cli-play') {
+    ;(async () => {
+      try {
+        const viewerBaseUrl = chrome.runtime.getURL('viewer/index.html')
+        // URLパラメータを構築
+        const params = new URLSearchParams()
+        if (msg.card) params.set('card', msg.card)
+        if (msg.setlist) params.set('setlist', msg.setlist)
+        if (msg.record) params.set('record', 'true')
+        const viewerUrl = `${viewerBaseUrl}?${params.toString()}`
+
+        // 既存のビューワータブを探す or 新規作成
+        const tabs = await chrome.tabs.query({})
+        let viewerTab = tabs.find(t => t.url && t.url.startsWith(viewerBaseUrl))
+
+        if (viewerTab) {
+          // 既存タブをURLパラメータ付きで更新
+          await chrome.tabs.update(viewerTab.id, { url: viewerUrl, active: true })
+        } else {
+          viewerTab = await chrome.tabs.create({ url: viewerUrl, active: true })
+        }
+
+        // タブ読み込み完了を待つ
+        await new Promise(resolve => {
+          chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+            if (tabId === viewerTab.id && info.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(listener)
+              resolve()
+            }
+          })
+        })
+
+        // autoRecordMorning を storage に設定
+        if (msg.record) {
+          await chrome.storage.local.set({ autoRecordMorning: true })
+        }
+
+        sendResponse({ ok: true, tabId: viewerTab.id })
+      } catch (e) {
+        console.error('CLI play error:', e)
+        sendResponse({ error: e.message })
+      }
+    })()
+    return true
+  }
 })
 
 // ============================================

@@ -62,6 +62,10 @@ cleanup() {
   if [ -n "$READINGS_DIR" ] && [ -f "$READINGS_DIR/index.json" ]; then
     rm -f "$READINGS_DIR/index.json"
   fi
+  # コピーしたランチャーを削除
+  if [ "$COPIED_LAUNCHER" = true ] && [ -n "$SERVE_DIR" ]; then
+    rm -f "$SERVE_DIR/cli-launcher.html"
+  fi
 }
 trap cleanup EXIT
 
@@ -139,15 +143,32 @@ else
   echo "  拡張ID: ${EXT_ID:0:8}..."
   echo ""
 
-  VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?card=${CARD}&record=true"
+  # ランチャー用の一時サーバーを起動（カードモードでも必要）
+  LAUNCHER_DIR="$SCRIPT_DIR"
+  python3 "$SCRIPT_DIR/cors-server.py" "$LOCAL_PORT" "$LAUNCHER_DIR" &>/dev/null &
+  SERVER_PID=$!
+  sleep 1
+
+  LAUNCHER_URL="http://127.0.0.1:${LOCAL_PORT}/cli-launcher.html?ext=${EXT_ID}&card=${CARD}&record=true"
+fi
+
+# ローカルモードのランチャーURL
+if [ "$MODE" = "local" ]; then
+  LAUNCHER_URL="http://127.0.0.1:${LOCAL_PORT}/cli-launcher.html?ext=${EXT_ID}&setlist=${SETLIST_URL}&record=true"
+
+  # cli-launcher.html がなければツールディレクトリからコピー
+  if [ ! -f "$SERVE_DIR/cli-launcher.html" ]; then
+    cp "$SCRIPT_DIR/cli-launcher.html" "$SERVE_DIR/cli-launcher.html"
+    COPIED_LAUNCHER=true
+  fi
 fi
 
 # 既存の最新WebMを記録
 BEFORE=$(ls -1t "$DOWNLOAD_DIR"/*.webm 2>/dev/null | head -1)
 
-# Chrome でビューワーを開く
+# ランチャー経由でbackground.jsにタブ作成+録画を指示
 echo "🚀 番組を開始中..."
-open -a "Google Chrome" "$VIEWER_URL"
+open -a "Google Chrome" "$LAUNCHER_URL"
 
 # 録画完了を待つ
 echo "⏳ 録画完了を待機中... (Ctrl+C で中断)"
