@@ -4087,6 +4087,93 @@ ${sectionBody}
 }
 
 // グローバルに公開
-// generateMorningShow()     → 生成＆再生
-// generateMorningShow(true) → 生成＆録画＆再生＆自動保存
 window.generateMorningShow = generateMorningShow
+
+// ============================================
+// CLI / URL パラメータ駆動
+// ============================================
+// ?card=news_morning  — Station のカードを自動再生
+// ?record=true        — 自動録画（tabCapture）
+// ?setlist=URL        — 任意のセットリストURL
+;(async () => {
+  const params = new URLSearchParams(location.search)
+  const cardId = params.get('card')
+  const setlistUrl = params.get('setlist')
+  const autoRecord = params.get('record') === 'true'
+
+  if (!cardId && !setlistUrl) return
+
+  // VRM/PNGTuber の初期化を待つ
+  await sleep(3000)
+
+  try {
+    let setlistText = ''
+
+    if (cardId) {
+      // Station からカード情報取得
+      const STATION_BASE = 'https://k3peta.github.io/aituber-radio-station'
+      status.textContent = `📡 カード「${cardId}」を取得中...`
+
+      // card.json を取得
+      const cardRes = await fetch(`${STATION_BASE}/cards/${cardId}/card.json`)
+      if (!cardRes.ok) throw new Error(`Card not found: ${cardId}`)
+      const card = await cardRes.json()
+
+      // メディアファイルをダウンロードして localFiles に登録
+      if (card.media) {
+        for (const [localPath, remotePath] of Object.entries(card.media)) {
+          try {
+            const mediaUrl = `${STATION_BASE}/${remotePath}`
+            const mediaRes = await fetch(mediaUrl)
+            if (mediaRes.ok) {
+              const blob = await mediaRes.blob()
+              localFiles.set(localPath, URL.createObjectURL(blob))
+              console.log(`📥 ${localPath} → loaded`)
+            }
+          } catch (e) {
+            console.warn(`📥 ${localPath} failed:`, e)
+          }
+        }
+      }
+
+      // セットリスト取得
+      const setlistRes = await fetch(`${STATION_BASE}/cards/${cardId}/${card.setlist || 'setlist.md'}`)
+      if (!setlistRes.ok) throw new Error(`Setlist not found for ${cardId}`)
+      setlistText = await setlistRes.text()
+
+    } else if (setlistUrl) {
+      status.textContent = '📡 セットリスト取得中...'
+      const res = await fetch(setlistUrl)
+      if (!res.ok) throw new Error(`Setlist fetch failed: ${setlistUrl}`)
+      setlistText = await res.text()
+    }
+
+    if (!setlistText) throw new Error('Empty setlist')
+
+    // 自動録画
+    if (autoRecord) {
+      await chrome.storage.local.set({ autoRecordMorning: true })
+    }
+
+    // 再生（playSetlist 内で autoRecord チェック）
+    if (isSetlist(setlistText)) {
+      const setlist = parseSetlist(setlistText)
+      console.log(`🚀 CLI autoplay: ${setlist.meta.title} (${setlist.segments.length} segments)`)
+      status.textContent = `📻 「${setlist.meta.title}」${setlist.segments.length}セグメント`
+      await playSetlist(setlist)
+    } else {
+      const parsed = parseScript(setlistText)
+      console.log(`🚀 CLI autoplay: ${parsed.meta.title} (${parsed.dialogues.length} lines)`)
+      await playScript(parsed)
+    }
+
+    // 完了シグナル（CLIからタイトルで検知可能）
+    document.title = 'DONE:' + (cardId || 'custom')
+    console.log('✅ CLI autoplay complete')
+
+  } catch (e) {
+    console.error('CLI autoplay error:', e)
+    status.textContent = `❌ ${e.message}`
+    document.title = 'ERROR:' + e.message
+  }
+})()
