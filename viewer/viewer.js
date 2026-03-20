@@ -136,16 +136,20 @@ async function startRecording(silent = false) {
     let videoStream
 
     if (silent) {
-      // tabCapture: ダイアログなしで自動キャプチャ
+      // tabCapture: ダイアログなしで自動キャプチャ（映像のみ）
       try {
         const response = await chrome.runtime.sendMessage({ action: 'get-tab-capture-stream' })
         if (response.error) throw new Error(response.error)
 
-        videoStream = await navigator.mediaDevices.getUserMedia({
+        const tabStream = await navigator.mediaDevices.getUserMedia({
           audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } },
           video: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } }
         })
-        console.log('📹 tabCapture成功（ダイアログなし）')
+        // 映像トラックのみ使用（音声は別途recordDestから取る）
+        // tabCaptureの音声トラックは停止→スピーカーにも音が出る
+        tabStream.getAudioTracks().forEach(t => t.stop())
+        videoStream = new MediaStream(tabStream.getVideoTracks())
+        console.log('📹 tabCapture成功（ダイアログなし・映像のみ）')
       } catch (e) {
         console.warn('📹 tabCapture失敗、手動モードにフォールバック:', e.message)
         silent = false // フォールバック
@@ -167,7 +171,6 @@ async function startRecording(silent = false) {
     const audioTracks = recordDest.stream.getAudioTracks()
     const combinedStream = new MediaStream([
       ...videoStream.getVideoTracks(),
-      ...(silent ? [] : []),  // silentモードではtabCaptureの音声も含まれる
       ...audioTracks
     ])
 
@@ -871,8 +874,11 @@ async function speak(text, speakerId = 38) {
  * @returns {boolean} stopRequested で中断されたか
  */
 async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
+  console.log(`🔧 speakPipeline: ${lines.length}行, speaker=${defaultSpeaker}, engine=${ttsEngine}`)
   if (audioCtx.state === 'suspended') await audioCtx.resume()
-  if (!await checkVoicevox()) return false
+  const ttsOk = await checkVoicevox()
+  console.log(`🔧 speakPipeline: TTS check = ${ttsOk}`)
+  if (!ttsOk) return false
 
   // AI読み変換（バッチ処理 — 再生前に一括変換）
   const ttsTexts = await convertReadingsForTTS(lines)
@@ -1320,7 +1326,9 @@ async function playScript(script) {
   }
 
   // AI 前処理
+  console.log(`▶️ playScript: 前処理開始 (${rawDialogues.length}行, ttsEngine=${ttsEngine})`)
   const dialogues = await preprocessWithAI(rawDialogues)
+  console.log(`▶️ playScript: 前処理完了 (${dialogues.length}行)`)
 
   status.textContent = `📖 「${title}」再生中...`
 
@@ -1331,6 +1339,7 @@ async function playScript(script) {
     if (stopRequested) { cleanup(); return }
     await sleep(800)
   } else if (title && title !== '台本') {
+    console.log(`▶️ playScript: タイトル読み上げ "${title}"`)
     showSubtitle(title, '📖 朗読')
     await speak(title)
     if (stopRequested) { cleanup(); return }
@@ -1338,6 +1347,7 @@ async function playScript(script) {
   }
 
   // パイプラインで先読み再生
+  console.log(`▶️ playScript: speakPipeline開始 (${dialogues.length}行, speaker=${meta.speaker || 38})`)
   const stopped = await speakPipeline(dialogues, meta.speaker || 38, (line, i) => {
     setEmotion(line.emotion, line.intensity)
     showSubtitle(line.text, `${title}（${i + 1}/${dialogues.length}）`)
