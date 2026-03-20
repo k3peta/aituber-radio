@@ -990,6 +990,8 @@ function parseScript(mdText) {
   let frontmatterDone = false
   let inMultilineValue = false
   let multilineKey = ''
+  let currentEmotion = 'neutral'
+  let currentIntensity = 1.0
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -1059,12 +1061,23 @@ function parseScript(mdText) {
       continue
     }
 
+    // [key: value] 形式のメタデータ行（感情・タイプ・BGM等）
+    const tagLine = trimmed.match(/^\[(\w+):\s*(.+?)\]$/)
+    if (tagLine) {
+      const key = tagLine[1].toLowerCase()
+      const val = tagLine[2]
+      if (key === 'emotion') currentEmotion = val
+      else if (key === 'intensity') currentIntensity = parseFloat(val)
+      // type, bgm, speaker 等はスキップ
+      continue
+    }
+
     // タグなしのプレーンテキスト行 → AI前処理の対象
     const cleanText = stripURLs(trimmed)
     if (cleanText) {
       dialogues.push({
-        emotion: 'neutral',
-        intensity: 1.0,
+        emotion: currentEmotion || 'neutral',
+        intensity: currentIntensity || 1.0,
         text: cleanText,
         _untagged: true
       })
