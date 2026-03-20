@@ -58,6 +58,10 @@ cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true
     echo "🔌 ローカルサーバー停止"
   fi
+  # 一時生成したindex.jsonを削除
+  if [ -n "$READINGS_DIR" ] && [ -f "$READINGS_DIR/index.json" ]; then
+    rm -f "$READINGS_DIR/index.json"
+  fi
 }
 trap cleanup EXIT
 
@@ -105,6 +109,14 @@ if [ "$MODE" = "local" ]; then
   echo "  配信:   $SERVE_DIR (port $LOCAL_PORT)"
   echo "  拡張ID: ${EXT_ID:0:8}..."
   echo ""
+
+  # readings/ フォルダがあれば index.json を生成
+  READINGS_DIR="$SERVE_DIR/readings"
+  if [ -d "$READINGS_DIR" ]; then
+    echo "📚 readings/ ファイル一覧を生成中..."
+    (cd "$READINGS_DIR" && ls -1 *.md *.txt 2>/dev/null | python3 -c "import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))" > index.json)
+    echo "   $(cat "$READINGS_DIR/index.json" | python3 -c "import sys,json; print(len(json.load(sys.stdin)),'件')")"
+  fi
 
   # CORS対応HTTPサーバーをバックグラウンドで起動
   python3 "$SCRIPT_DIR/cors-server.py" "$LOCAL_PORT" "$SERVE_DIR" &>/dev/null &
