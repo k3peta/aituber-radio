@@ -3921,6 +3921,8 @@ speed: 0.95
 # ジングル${sectionIdx}
 [type: jingle]
 [file: ${availableJingles[jIdx]}]
+[duration: 5]
+[fadeOut: 1.5]
 
 `
       }
