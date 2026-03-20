@@ -3962,9 +3962,6 @@ ${trimmed}
 
     console.log('📝 セットリスト生成完了')
 
-    const setlist = parseSetlist(setlistMd)
-    console.log(`📝 自動生成台本: ${setlist.segments.length}セグメント`)
-
     // 自動録画モード
     if (autoRecord) {
       status.textContent = '📹 録画開始...'
@@ -3972,8 +3969,18 @@ ${trimmed}
       await sleep(1000) // 録画安定待ち
     }
 
-    // セットリストとして再生（通常の台本と同じ仕組み）
-    await playSetlist(setlist)
+    // 通常の台本再生と同じパスで再生
+    if (isSetlist(setlistMd)) {
+      const setlist = parseSetlist(setlistMd)
+      console.log(`📝 自動生成台本: ${setlist.segments.length}セグメント`)
+      status.textContent = `📻 「${setlist.meta.title}」${setlist.segments.length}セグメント`
+      await playSetlist(setlist)
+    } else {
+      const parsed = parseScript(setlistMd)
+      console.log(`📝 自動生成台本: ${parsed.dialogues.length}行`)
+      status.textContent = `📖 「${parsed.meta.title}」${parsed.dialogues.length}行`
+      await playScript(parsed)
+    }
 
     // 自動録画終了
     if (autoRecord && isRecording) {
