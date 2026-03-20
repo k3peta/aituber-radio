@@ -2217,7 +2217,7 @@ function generateFallbackReply(comment) {
 // ============================================
 function isSetlist(text) {
   // [type: talk] や [type: script] などがあればセットリスト
-  return /\[type:\s*(talk|script|jingle|freetalk|audio)\]/i.test(text)
+  return /\[type:\s*(talk|script|jingle|freetalk|audio|auto-news|auto-weather|auto-today)\]/i.test(text)
 }
 
 function parseSetlist(mdText) {
@@ -2697,6 +2697,83 @@ async function playSetlist(setlist) {
           }
         }
         break;
+      }
+
+      // === 動的コンテンツセグメント ===
+      case 'auto-news': {
+        status.textContent = '📰 ニュース取得中...'
+        const news = await fetchNewsForShow()
+        if (stopRequested) break
+        if (news.length === 0) {
+          showSubtitle('ニュースの取得に失敗しました', '📰')
+          await speak('ニュースの取得に失敗しました', speaker)
+          break
+        }
+        const newsPrompt = `あなたはラジオパーソナリティ。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
+        const newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
+        if (stopRequested) break
+        const newsDialogues = newsScript ? parseScript(`---\n---\n${newsScript}`).dialogues : []
+        if (newsDialogues.length > 0) {
+          status.textContent = `📰 ニュース（${newsDialogues.length}行）`
+          const newsStopped = await speakPipeline(newsDialogues, speaker, (line, i) => {
+            setEmotion(line.emotion, line.intensity)
+            showSubtitle(line.text, `📰 ニュース（${i + 1}/${newsDialogues.length}）`)
+          })
+          if (newsStopped) { cleanup(); return }
+        }
+        hideSubtitle()
+        break
+      }
+
+      case 'auto-weather': {
+        status.textContent = '🌤️ 天気取得中...'
+        const weather = await fetchWeatherForShow()
+        if (stopRequested) break
+        if (weather.length === 0) {
+          showSubtitle('天気情報の取得に失敗しました', '🌤️')
+          await speak('天気情報の取得に失敗しました', speaker)
+          break
+        }
+        const weatherData = weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')
+        const weatherPrompt = `あなたはラジオの天気予報担当。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n\n${weatherData}`
+        const weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
+        if (stopRequested) break
+        const weatherDialogues = weatherScript ? parseScript(`---\n---\n${weatherScript}`).dialogues : []
+        if (weatherDialogues.length > 0) {
+          status.textContent = `🌤️ 天気予報（${weatherDialogues.length}行）`
+          const weatherStopped = await speakPipeline(weatherDialogues, speaker, (line, i) => {
+            setEmotion(line.emotion, line.intensity)
+            showSubtitle(line.text, `🌤️ 天気予報（${i + 1}/${weatherDialogues.length}）`)
+          })
+          if (weatherStopped) { cleanup(); return }
+        }
+        hideSubtitle()
+        break
+      }
+
+      case 'auto-today': {
+        status.textContent = '📅 今日は何の日を取得中...'
+        const history = await fetchTodayInHistoryForShow()
+        if (stopRequested) break
+        if (history.length === 0) {
+          showSubtitle('今日は何の日の情報が取得できませんでした', '📅')
+          await speak('今日は何の日の情報が取得できませんでした', speaker)
+          break
+        }
+        const todayPrompt = `あなたはラジオパーソナリティ。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n\n${history.join('\n')}`
+        const todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
+        if (stopRequested) break
+        const todayDialogues = todayScript ? parseScript(`---\n---\n${todayScript}`).dialogues : []
+        if (todayDialogues.length > 0) {
+          status.textContent = `📅 今日は何の日（${todayDialogues.length}行）`
+          const todayStopped = await speakPipeline(todayDialogues, speaker, (line, i) => {
+            setEmotion(line.emotion, line.intensity)
+            showSubtitle(line.text, `📅 今日は何の日（${i + 1}/${todayDialogues.length}）`)
+          })
+          if (todayStopped) { cleanup(); return }
+        }
+        hideSubtitle()
+        break
       }
     }
 
