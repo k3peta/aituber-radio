@@ -3785,15 +3785,7 @@ function toggleLocalCommentBox() {
 })()
 
 // ============================================
-// 録画ボタン
-// ============================================
-document.getElementById('recordBtn')?.addEventListener('click', () => {
-  if (isRecording) {
-    stopRecording()
-  } else {
-    startRecording()
-  }
-})
+
 
 // ============================================
 // おはようラジオ 自動生成 & 再生
