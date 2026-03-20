@@ -3,8 +3,24 @@
 WebM → MP4 変換ツール（円形プログレス付き）
 ドラッグ&ドロップ対応。Dock上で円形タイマーのように進捗表示。
 """
-import sys, os, subprocess, re, threading, math
+import sys, os, subprocess, re, threading, math, shutil
 import tkinter as tk
+
+# ffmpeg パス検索（Automator/AppleScript から起動すると PATH が限定的）
+FFMPEG_PATHS = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "ffmpeg"]
+FFPROBE_PATHS = ["/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe", "ffprobe"]
+
+def find_bin(candidates):
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+        found = shutil.which(p)
+        if found:
+            return found
+    return candidates[-1]  # fallback
+
+FFMPEG = find_bin(FFMPEG_PATHS)
+FFPROBE = find_bin(FFPROBE_PATHS)
 
 class CircularProgress:
     def __init__(self, files):
@@ -95,7 +111,7 @@ class CircularProgress:
         """ffprobeで動画の長さを取得"""
         try:
             result = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                [FFPROBE, "-v", "error", "-show_entries", "format=duration",
                  "-of", "default=noprint_wrappers=1:nokey=1", filepath],
                 capture_output=True, text=True
             )
@@ -114,7 +130,7 @@ class CircularProgress:
         
         # ffmpeg -progress pipe で進捗取得
         cmd = [
-            "ffmpeg", "-y", "-i", filepath,
+            FFMPEG, "-y", "-i", filepath,
             "-c:v", "libx264", "-c:a", "aac",
             "-vsync", "cfr", "-r", "30",
             "-movflags", "+faststart",
