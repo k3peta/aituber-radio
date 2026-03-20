@@ -3899,24 +3899,68 @@ ${historyText}
 
     console.log(`🎵 ジングル: ${availableJingles.length}個, BGM: ${hasBGM}, opening: ${hasOpening}`)
 
-    // ジングル挿入不要 — 直接テキストを使用
-    // BGM/openingは台本ヘッダーに含めない（playScript後に別途処理）
-
-    // 生成されたテキストをパースして再生
-    const fullScript = `---
+    // LLM出力をセットリスト形式に変換
+    // # セクション見出しの前にジングルセグメントを挿入
+    const sections = scriptText.split(/^(?=# )/m)
+    let setlistMd = `---
 title: 怪談ちゃんの${showName}（${now.getMonth() + 1}/${now.getDate()}）
 speaker: 38
 speed: 0.95
 ---
 
-${scriptText}`
+`
+    let sectionIdx = 0
+    for (const section of sections) {
+      const trimmed = section.trim()
+      if (!trimmed) continue
 
-    const parsed = parseScript(fullScript)
-    // ジングルURLリストをメタデータに付与
-    parsed.meta._jingles = availableJingles
-    parsed.meta._bgm = bgmFile
-    parsed.meta._opening = openingFile
-    console.log(`📝 自動生成台本: ${parsed.dialogues.length}行`)
+      // 最初のセクション以外にジングルを挿入
+      if (sectionIdx > 0 && availableJingles.length > 0) {
+        const jIdx = Math.min(sectionIdx - 1, availableJingles.length - 1)
+        setlistMd += `
+# ジングル${sectionIdx}
+[type: jingle]
+[file: ${availableJingles[jIdx]}]
+
+`
+      }
+
+      // セクション本体（talkセグメント）
+      // BGMは最初のセクションで開始
+      if (sectionIdx === 0 && bgmFile) {
+        // 見出しの後にBGM指定を挿入
+        const lines = trimmed.split('\n')
+        const heading = lines[0]
+        const rest = lines.slice(1).join('\n')
+        setlistMd += `${heading}
+[type: talk]
+[bgm: ${bgmFile}]
+[bgmVolume: 0.15]
+${rest}
+
+`
+      } else {
+        // # 見出しがあればそのまま、なければ追加
+        if (trimmed.startsWith('#')) {
+          setlistMd += `${trimmed}
+[type: talk]
+
+`
+        } else {
+          setlistMd += `# セクション${sectionIdx + 1}
+[type: talk]
+${trimmed}
+
+`
+        }
+      }
+      sectionIdx++
+    }
+
+    console.log('📝 セットリスト生成完了')
+
+    const setlist = parseSetlist(setlistMd)
+    console.log(`📝 自動生成台本: ${setlist.segments.length}セグメント`)
 
     // 自動録画モード
     if (autoRecord) {
@@ -3925,14 +3969,8 @@ ${scriptText}`
       await sleep(1000) // 録画安定待ち
     }
 
-    // BGM開始
-    if (bgmFile) {
-      const bgmUrl = await resolveMediaURL(bgmFile)
-      if (bgmUrl) startBGM(bgmUrl, 0.15)
-    }
-
-    // 再生（ジングル付き）
-    await playScriptWithJingles(parsed)
+    // セットリストとして再生（通常の台本と同じ仕組み）
+    await playSetlist(setlist)
 
     // 自動録画終了
     if (autoRecord && isRecording) {
