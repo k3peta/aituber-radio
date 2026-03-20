@@ -3537,7 +3537,7 @@ async function fetchTodayInHistoryForShow() {
   }
 }
 
-async function generateMorningShow() {
+async function generateMorningShow(autoRecord = false) {
   if (isPlaying) {
     stopRequested = true
     return
@@ -3623,14 +3623,31 @@ ${scriptText}`
     const parsed = parseScript(fullScript)
     console.log(`📝 自動生成台本: ${parsed.dialogues.length}行`)
 
+    // 自動録画モード
+    if (autoRecord) {
+      status.textContent = '📹 録画開始...'
+      await startRecording()
+      await sleep(1000) // 録画安定待ち
+    }
+
     // 再生
     await playScript(parsed)
+
+    // 自動録画終了
+    if (autoRecord && isRecording) {
+      await sleep(500)
+      stopRecording()
+      console.log('📹 自動録画完了')
+    }
 
   } catch (e) {
     console.error('Morning show error:', e)
     status.textContent = `❌ 生成エラー: ${e.message}`
+    if (autoRecord && isRecording) stopRecording()
   }
 }
 
-// グローバルに公開（ポップアップやショートカットから呼べるように）
+// グローバルに公開
+// generateMorningShow()     → 生成＆再生
+// generateMorningShow(true) → 生成＆録画＆再生＆自動保存
 window.generateMorningShow = generateMorningShow
