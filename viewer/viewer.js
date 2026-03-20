@@ -3152,7 +3152,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       loadAndPlayDefaultSetlist()
       break
     case 'generate-morning-show':
-      generateMorningShow(msg.autoRecord || false)
+      generateMorningShow()
       break
     case 'play-script':
       // ポップアップから台本名を指定して再生
