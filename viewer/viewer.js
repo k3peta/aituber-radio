@@ -1,3 +1,16 @@
+// ============================================
+// AITuber Radio — Viewer Main Entry
+// ============================================
+//
+// モジュール構成（段階的にモジュールファイルへ移行中）:
+//   modules/recording.js  — 合成Canvas録画
+//   modules/content.js    — ニュース/天気/今日は何の日取得
+//   modules/subtitle.js   — 字幕表示
+//   modules/parser.js     — 台本パーサー (parseScript/parseSetlist)
+//
+// TODO: 各セクションのコードを上記モジュールの import に段階的に置換
+// ============================================
+
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
