@@ -131,7 +131,7 @@ class CircularProgress:
         # ffmpeg -progress pipe で進捗取得
         cmd = [
             FFMPEG, "-y", "-i", filepath,
-            "-c:v", "libx264", "-c:a", "aac",
+            "-c:v", "h264_videotoolbox", "-b:v", "4M", "-c:a", "aac",
             "-vsync", "cfr", "-r", "30",
             "-movflags", "+faststart",
             "-progress", "pipe:1",
