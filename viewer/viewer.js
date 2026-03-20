@@ -1448,7 +1448,7 @@ async function playScriptWithJingles(script) {
         const jUrl = await resolveMediaURL(jingles[jIdx])
         if (jUrl) {
           console.log(`🎵 ジングル再生: ${jingles[jIdx]}`)
-          await playJingleSimple(jUrl)
+          await playJingle({ audio: jUrl, fadeOut: 1.5, duckTo: 0.15 })
         }
       }
 
@@ -1469,7 +1469,7 @@ async function playScriptWithJingles(script) {
         const jUrl = await resolveMediaURL(jingles[jIdx])
         if (jUrl) {
           console.log(`🎵 ジングル再生: ${jingles[jIdx]}`)
-          await playJingleSimple(jUrl)
+          await playJingle({ audio: jUrl, fadeOut: 1.5, duckTo: 0.15 })
         }
       }
 
