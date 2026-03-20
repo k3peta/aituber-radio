@@ -20,9 +20,8 @@
     chrome.runtime.sendMessage(extId, msg, (response) => {
       if (chrome.runtime.lastError) {
         el.textContent = 'Error: ' + chrome.runtime.lastError.message
-      } else if (response && response.ok) {
-        el.textContent = 'Launched! tabId=' + response.tabId
-        // ランチャーページは閉じる
+      } else if (response === true || (response && response.ok)) {
+        el.textContent = '✅ Launched!'
         setTimeout(() => window.close(), 1000)
       } else {
         el.textContent = 'Error: ' + JSON.stringify(response)
