@@ -3,7 +3,7 @@
   "name": "AITuber Radio",
   "version": "0.7.0",
   "description": "AITuber Radio — VRM キャラクターによるAIラジオ配信ツール",
-  "permissions": ["storage", "tabs", "alarms"],
+  "permissions": ["storage", "tabs", "alarms", "tabCapture"],
   "host_permissions": [
     "http://localhost:50021/*",
     "http://127.0.0.1:11180/*",

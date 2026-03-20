@@ -134,6 +134,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true
   }
 
+  // タブキャプチャ（ダイアログなし）
+  if (msg.action === 'get-tab-capture-stream') {
+    const tabId = sender.tab?.id
+    if (!tabId) {
+      sendResponse({ error: 'No tab ID' })
+      return
+    }
+    chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (streamId) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: chrome.runtime.lastError.message })
+      } else {
+        sendResponse({ streamId })
+      }
+    })
+    return true
+  }
+
   // 毎朝アラーム設定
   if (msg.action === 'set-daily-alarm') {
     const [h, m] = (msg.time || '07:00').split(':').map(Number)

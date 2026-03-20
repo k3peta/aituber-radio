@@ -127,21 +127,39 @@ const masterGain = audioCtx.createGain()
 masterGain.connect(audioCtx.destination)
 masterGain.connect(recordDest)
 
-async function startRecording() {
+let capturedStream = null  // stopRecording用に保持
+
+async function startRecording(silent = false) {
   if (isRecording) return
 
   try {
-    // タブの映像をキャプチャ（ユーザーに共有ダイアログが出る）
-    const displayStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: 'browser', frameRate: 30 },
-      audio: false,
-      preferCurrentTab: true
-    })
+    let videoStream
+
+    if (silent) {
+      // tabCapture: ダイアログなしで自動キャプチャ
+      const response = await chrome.runtime.sendMessage({ action: 'get-tab-capture-stream' })
+      if (response.error) throw new Error(response.error)
+
+      videoStream = await navigator.mediaDevices.getUserMedia({
+        audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } },
+        video: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } }
+      })
+    } else {
+      // 手動: ユーザーにダイアログ表示
+      videoStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser', frameRate: 30 },
+        audio: false,
+        preferCurrentTab: true
+      })
+    }
+
+    capturedStream = videoStream
 
     // 音声トラック（TTS+BGM+ジングル）をマージ
     const audioTracks = recordDest.stream.getAudioTracks()
     const combinedStream = new MediaStream([
-      ...displayStream.getVideoTracks(),
+      ...videoStream.getVideoTracks(),
+      ...(silent ? [] : []),  // silentモードではtabCaptureの音声も含まれる
       ...audioTracks
     ])
 
@@ -156,7 +174,10 @@ async function startRecording() {
     }
 
     mediaRecorder.onstop = () => {
-      displayStream.getTracks().forEach(t => t.stop())
+      if (capturedStream) {
+        capturedStream.getTracks().forEach(t => t.stop())
+        capturedStream = null
+      }
       const blob = new Blob(recordedChunks, { type: 'video/webm' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -169,16 +190,18 @@ async function startRecording() {
       console.log('Recording saved:', a.download, `${(blob.size / 1024 / 1024).toFixed(1)} MB`)
     }
 
-    // 共有停止ボタンで録画も停止
-    displayStream.getVideoTracks()[0].onended = () => {
-      if (isRecording) stopRecording()
+    // 共有停止ボタンで録画も停止（手動モードのみ）
+    if (!silent) {
+      videoStream.getVideoTracks()[0].onended = () => {
+        if (isRecording) stopRecording()
+      }
     }
 
     mediaRecorder.start(1000)
     isRecording = true
     recordingStartTime = Date.now()
     updateRecordButton()
-    console.log('Recording started (tab capture)')
+    console.log(`Recording started (${silent ? 'tabCapture auto' : 'manual'})`)
   } catch (e) {
     console.error('Recording failed:', e)
   }
@@ -3642,7 +3665,7 @@ ${scriptText}`
     // 自動録画モード
     if (autoRecord) {
       status.textContent = '📹 録画開始...'
-      await startRecording()
+      await startRecording(true) // tabCapture: ダイアログなし
       await sleep(1000) // 録画安定待ち
     }
 
