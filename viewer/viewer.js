@@ -3895,14 +3895,16 @@ ${historyText}
     }
     const hasBGM = localFiles.has('media/bgm.mp3') || localFiles.has('media/bgm.wav')
     const bgmFile = hasBGM ? (localFiles.has('media/bgm.mp3') ? 'media/bgm.mp3' : 'media/bgm.wav') : null
-    const hasOpening = localFiles.has('media/opening.jpg') || localFiles.has('media/opening.png')
-    const openingFile = hasOpening ? (localFiles.has('media/opening.jpg') ? 'media/opening.jpg' : 'media/opening.png') : null
+    // ending画像も検出
+    const hasEnding = localFiles.has('media/ending.jpg') || localFiles.has('media/ending.png')
+    const endingFile = hasEnding ? (localFiles.has('media/ending.jpg') ? 'media/ending.jpg' : 'media/ending.png') : null
+    // コーナー用ジングル（jingle2があればそれ、なければjingle1）
+    const cornerJingle = availableJingles.length >= 2 ? availableJingles[1] : (availableJingles[0] || null)
 
-    console.log(`🎵 ジングル: ${availableJingles.length}個, BGM: ${hasBGM}, opening: ${hasOpening}`)
+    console.log(`🎵 ジングル: ${availableJingles.length}個, BGM: ${hasBGM}, opening: ${hasOpening}, ending: ${hasEnding}`)
 
     // LLM出力をセットリスト形式に変換
-    // # セクション見出しの前にジングルセグメントを挿入
-    const sections = scriptText.split(/^(?=# )/m)
+    const sections = scriptText.split(/^(?=# )/m).filter(s => s.trim())
     let setlistMd = `---
 title: 怪談ちゃんの${showName}（${now.getMonth() + 1}/${now.getDate()}）
 speaker: 38
@@ -3910,73 +3912,79 @@ speed: 0.95
 ---
 
 `
-    // オープニング演出（opening.jpg + jingle1）
-    if (openingFile && availableJingles.length > 0) {
-      setlistMd += `# オープニング
-[type: jingle]
-[file: ${availableJingles[0]}]
-[overlay: ${openingFile}]
-[duration: 5]
-[fadeOut: 1.5]
+    // === オープニング: jingle1 + opening.jpg + 挨拶をspeakAt ===
+    const firstSection = sections[0] ? sections[0].trim() : ''
+    const firstLines = firstSection.split('\n')
+    const firstHeading = firstLines[0].replace(/^#+\s*/, '')
+    // 挨拶の最初の1行をspeakAtテキストにする
+    const greetLine = firstLines.find(l => l.trim() && !l.startsWith('#') && !l.startsWith('[')) || `${greeting}！怪談ちゃんの${showName}！`
 
-`
-    } else if (openingFile) {
+    if (availableJingles.length > 0) {
       setlistMd += `# オープニング
 [type: jingle]
-[overlay: ${openingFile}]
-[duration: 3]
+[file: ${availableJingles[0]}]${openingFile ? `\n[overlay: ${openingFile}]` : ''}
+[speakAt: 2]
+[speakText: ${greetLine.trim()}]
+[speakSpeaker: 38]
 
 `
     }
 
-    let sectionIdx = 0
-    for (const section of sections) {
-      const trimmed = section.trim()
-      if (!trimmed) continue
+    // === 挨拶セクション（残りの行）+ BGM開始 ===
+    const restOfFirst = firstLines.slice(1).filter(l => l.trim() && !l.startsWith('[type')).join('\n')
+    if (restOfFirst.trim()) {
+      setlistMd += `# ${firstHeading}
+[type: talk]${bgmFile ? `\n[bgm: ${bgmFile}]\n[bgmVolume: 0.15]` : ''}
+${restOfFirst}
 
-      // 最初のセクション以外にジングルを挿入
-      if (sectionIdx > 0 && availableJingles.length > 0) {
-        const jIdx = Math.min(sectionIdx - 1, availableJingles.length - 1)
-        setlistMd += `
-# ジングル${sectionIdx}
+`
+    }
+
+    // === 各コーナー: ジングル → talk ===
+    for (let i = 1; i < sections.length; i++) {
+      const section = sections[i].trim()
+      if (!section) continue
+
+      const isLastSection = (i === sections.length - 1)
+
+      // コーナー前にジングル（最後のセクションにはジングルなし → エンディングで処理）
+      if (cornerJingle && !isLastSection) {
+        setlistMd += `# ジングル
 [type: jingle]
-[file: ${availableJingles[jIdx]}]
+[file: ${cornerJingle}]
 [duration: 5]
 [fadeOut: 1.5]
 
 `
       }
 
-      // セクション本体（talkセグメント）
-      // BGMは最初のセクションで開始
-      if (sectionIdx === 0 && bgmFile) {
-        // 見出しの後にBGM指定を挿入
-        const lines = trimmed.split('\n')
+      // コーナー本体
+      if (section.startsWith('#')) {
+        const lines = section.split('\n')
         const heading = lines[0]
-        const rest = lines.slice(1).join('\n')
+        const body = lines.slice(1).join('\n')
         setlistMd += `${heading}
 [type: talk]
-[bgm: ${bgmFile}]
-[bgmVolume: 0.15]
-${rest}
+${body}
 
 `
       } else {
-        // # 見出しがあればそのまま、なければ追加
-        if (trimmed.startsWith('#')) {
-          setlistMd += `${trimmed}
+        setlistMd += `# コーナー${i}
 [type: talk]
+${section}
 
 `
-        } else {
-          setlistMd += `# セクション${sectionIdx + 1}
-[type: talk]
-${trimmed}
-
-`
-        }
       }
-      sectionIdx++
+    }
+
+    // === エンディング: jingle1 + ending.jpg ===
+    if (availableJingles.length > 0 || endingFile) {
+      setlistMd += `# エンディング
+[type: jingle]
+[file: ${availableJingles[0] || cornerJingle}]${endingFile ? `\n[overlay: ${endingFile}]` : (openingFile ? `\n[overlay: ${openingFile}]` : '')}
+[bgmstop: true]
+
+`
     }
 
     console.log('📝 セットリスト生成完了')
