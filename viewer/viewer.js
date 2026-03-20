@@ -3462,3 +3462,175 @@ document.getElementById('recordBtn')?.addEventListener('click', () => {
     startRecording()
   }
 })
+
+// ============================================
+// おはようラジオ 自動生成 & 再生
+// ============================================
+
+async function fetchNewsForShow() {
+  try {
+    const res = await fetch('https://www.nhk.or.jp/rss/news/cat0.xml')
+    const xml = await res.text()
+    const items = []
+    // 複数パターンで抽出
+    const patterns = [
+      /<item>[\s\S]*?<title><!\[CDATA\[(.*?)\]\]><\/title>[\s\S]*?<\/item>/g,
+      /<item>\s*<title>(.*?)<\/title>/g
+    ]
+    for (const regex of patterns) {
+      let match
+      while ((match = regex.exec(xml)) !== null && items.length < 5) {
+        if (!match[1].includes('NHK')) items.push(match[1])
+      }
+      if (items.length > 0) break
+    }
+    console.log(`📰 ニュース: ${items.length}件`)
+    return items
+  } catch (e) {
+    console.log('📰 ニュース取得失敗')
+    return []
+  }
+}
+
+async function fetchWeatherForShow() {
+  try {
+    const res = await fetch('https://wttr.in/Tokyo?format=j1')
+    const data = await res.json()
+    const c = data.current_condition?.[0]
+    const t = data.weather?.[0]
+    if (!c) return null
+    const w = {
+      temp: c.temp_C,
+      feelsLike: c.FeelsLikeC,
+      desc: c.lang_ja?.[0]?.value || c.weatherDesc?.[0]?.value || '',
+      maxTemp: t?.maxtempC || '?',
+      minTemp: t?.mintempC || '?',
+      rainChance: t?.hourly?.[4]?.chanceofrain || '0',
+      humidity: c.humidity
+    }
+    console.log(`🌤️ 天気: ${w.desc} ${w.temp}°C`)
+    return w
+  } catch {
+    console.log('🌤️ 天気取得失敗')
+    return null
+  }
+}
+
+async function fetchTodayInHistoryForShow() {
+  try {
+    const now = new Date()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const res = await fetch(`https://ja.wikipedia.org/api/rest_v1/feed/onthisday/events/${m}/${d}`,
+      { headers: { 'User-Agent': 'AITuberRadio/1.0' } })
+    const data = await res.json()
+    const events = (data.events || [])
+      .filter(e => e.year > 1900)
+      .sort((a, b) => b.year - a.year)
+      .slice(0, 3)
+      .map(e => `${e.year}年: ${e.text}`)
+    console.log(`📅 今日は何の日: ${events.length}件`)
+    return events
+  } catch {
+    console.log('📅 今日は何の日 取得失敗')
+    return []
+  }
+}
+
+async function generateMorningShow() {
+  if (isPlaying) {
+    stopRequested = true
+    return
+  }
+
+  status.textContent = '🌅 おはようラジオ生成中...'
+
+  const now = new Date()
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+  const displayDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${weekdays[now.getDay()]}）`
+  const hour = now.getHours()
+  const greeting = hour < 11 ? 'おはようございます' : hour < 17 ? 'こんにちは' : 'こんばんは'
+  const showName = hour < 11 ? 'おはようラジオ' : hour < 17 ? 'ひるまちラジオ' : '夜ふかしラジオ'
+  const closing = hour < 11 ? '今日も元気にいってらっしゃい！' : hour < 17 ? '午後も頑張ってね！' : '明日も良い一日になりますように。おやすみ！'
+
+  // 並列でデータ取得
+  status.textContent = '🌅 ニュース・天気を取得中...'
+  const [news, weather, history] = await Promise.all([
+    fetchNewsForShow(),
+    fetchWeatherForShow(),
+    fetchTodayInHistoryForShow()
+  ])
+
+  const newsText = news.length > 0
+    ? `【ニュース（NHK）】\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
+    : '【ニュースなし】'
+  const weatherText = weather
+    ? `【天気（東京）】${weather.desc} ${weather.temp}°C（体感${weather.feelsLike}°C）最高${weather.maxTemp}°C/最低${weather.minTemp}°C 降水確率${weather.rainChance}% 湿度${weather.humidity}%`
+    : '【天気情報なし】'
+  const historyText = history.length > 0
+    ? `【今日は何の日】\n${history.join('\n')}`
+    : '【今日は何の日：なし】'
+
+  status.textContent = '🌅 台本を生成中...'
+
+  const prompt = `あなたはAIラジオパーソナリティ「怪談ちゃん」（元気で明るい女の子）。
+「怪談ちゃんの${showName}」の台本を作って。
+
+【日付】${displayDate}
+${newsText}
+${weatherText}
+${historyText}
+
+【出力形式】セットリストのセリフ部分のみ。1行1文。
+- 感情指定行: [emotion: happy] [intensity: 0.8] のように独立した行で
+- セグメント見出し: # コーナー名
+- コメント: // で始まる行
+
+【番組構成（15分）】
+1. 挨拶「${greeting}！怪談ちゃんの${showName}！」+ 日付紹介
+2. 今日は何の日（あれば2つほど紹介、なければ雑学）
+3. ニュース（2〜3本、自分の感想も交えて）
+4. 天気予報（服装・傘のアドバイス）
+5. 今日の一言（ポジティブ）
+6. 締め「${closing}」
+
+【ルール】
+- 口語体で自然に
+- 1行は短めの一文
+- ニュースは事実＋感想
+- 天気は実用的に
+- frontmatter不要、セリフだけ出力`
+
+  try {
+    const scriptText = await callLLM([
+      { role: 'user', content: prompt }
+    ], { maxTokens: 4000, temperature: 0.8 })
+
+    if (!scriptText) {
+      status.textContent = '❌ 台本生成失敗（API応答なし）'
+      return
+    }
+
+    // 生成されたテキストをパースして再生
+    const fullScript = `---
+title: 怪談ちゃんの${showName}（${now.getMonth() + 1}/${now.getDate()}）
+speaker: 38
+speed: 0.95
+---
+
+${scriptText}`
+
+    const parsed = parseScript(fullScript)
+    console.log(`📝 自動生成台本: ${parsed.dialogues.length}行`)
+
+    // 再生
+    await playScript(parsed)
+
+  } catch (e) {
+    console.error('Morning show error:', e)
+    status.textContent = `❌ 生成エラー: ${e.message}`
+  }
+}
+
+// グローバルに公開（ポップアップやショートカットから呼べるように）
+window.generateMorningShow = generateMorningShow
