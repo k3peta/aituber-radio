@@ -142,46 +142,18 @@ async function startRecording(silent = false) {
   if (isRecording) return
 
   try {
-    let videoStream
-
-    if (silent) {
-      // tabCapture: ダイアログなしで自動キャプチャ（映像のみ）
-      try {
-        const response = await chrome.runtime.sendMessage({ action: 'get-tab-capture-stream' })
-        if (response.error) throw new Error(response.error)
-
-        const tabStream = await navigator.mediaDevices.getUserMedia({
-          audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } },
-          video: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } }
-        })
-        // 映像トラックのみ使用（音声は別途recordDestから取る）
-        // tabCaptureの音声トラックは停止→スピーカーにも音が出る
-        tabStream.getAudioTracks().forEach(t => t.stop())
-        videoStream = new MediaStream(tabStream.getVideoTracks())
-        console.log('📹 tabCapture成功（ダイアログなし・映像のみ）')
-      } catch (e) {
-        console.warn('📹 tabCapture失敗、手動モードにフォールバック:', e.message)
-        silent = false // フォールバック
-      }
-    }
-    
-    if (!silent && !videoStream) {
-      // 手動: ユーザーにダイアログ表示（音声もキャプチャ）
-      videoStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser', frameRate: 30 },
-        audio: true,
-        preferCurrentTab: true
-      })
-    }
-
-    capturedStream = videoStream
+    // Canvas + AudioContext から直接録画（権限・ダイアログ不要）
+    const canvas = document.getElementById('canvas')
+    const canvasStream = canvas.captureStream(30)
 
     // 音声トラック（TTS+BGM+ジングル）をマージ
     const audioTracks = recordDest.stream.getAudioTracks()
     const combinedStream = new MediaStream([
-      ...videoStream.getVideoTracks(),
+      ...canvasStream.getVideoTracks(),
       ...audioTracks
     ])
+
+    capturedStream = canvasStream
 
     recordedChunks = []
     mediaRecorder = new MediaRecorder(combinedStream, {
@@ -210,18 +182,11 @@ async function startRecording(silent = false) {
       console.log('Recording saved:', a.download, `${(blob.size / 1024 / 1024).toFixed(1)} MB`)
     }
 
-    // 共有停止ボタンで録画も停止（手動モードのみ）
-    if (!silent) {
-      videoStream.getVideoTracks()[0].onended = () => {
-        if (isRecording) stopRecording()
-      }
-    }
-
     mediaRecorder.start(1000)
     isRecording = true
     recordingStartTime = Date.now()
     updateRecordButton()
-    console.log(`Recording started (${silent ? 'tabCapture auto' : 'manual'})`)
+    console.log(`📹 Canvas録画開始（権限不要・${silent ? 'auto' : 'manual'}）`)
   } catch (e) {
     console.error('Recording failed:', e)
   }
