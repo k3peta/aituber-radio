@@ -2917,9 +2917,23 @@ async function playJingle(opts) {
   }
 
   try {
-    const res = await fetch(audioUrl)
-    const arrayBuffer = await res.arrayBuffer()
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+    let audioBuffer
+    try {
+      const res = await fetch(audioUrl)
+      const arrayBuffer = await res.arrayBuffer()
+      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+    } catch (fetchErr) {
+      // blob URL の fetch 失敗時: Audio 要素でフォールバック再生
+      console.warn('🎵 fetch失敗、Audio要素で再生:', fetchErr.message)
+      const audio = new Audio(audioUrl)
+      audio.volume = 1.0
+      await new Promise((resolve) => {
+        audio.onended = resolve
+        audio.onerror = () => { console.warn('🎵 ジングル再生失敗'); resolve() }
+        audio.play().catch(() => resolve())
+      })
+      return
+    }
 
     // GainNode でボリューム制御（フェードアウト・ダッキング用）
     const gainNode = audioCtx.createGain()
