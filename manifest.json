@@ -8,7 +8,7 @@
     "http://localhost:50021/*",
     "http://127.0.0.1:11180/*",
     "https://news.google.com/*",
-    "https://wttr.in/*",
+    "https://weather.tsukumijima.net/*",
     "https://ja.wikipedia.org/*"
   ],
   "action": {

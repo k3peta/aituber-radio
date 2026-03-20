@@ -3550,21 +3550,24 @@ async function fetchNewsForShow() {
 
 async function fetchWeatherForShow() {
   try {
-    const res = await fetch('https://wttr.in/Tokyo?format=j1')
+    // 気象庁 API（tsukumijima ラッパー）— 東京: 130010
+    const res = await fetch('https://weather.tsukumijima.net/api/forecast/city/130010')
     const data = await res.json()
-    const c = data.current_condition?.[0]
-    const t = data.weather?.[0]
-    if (!c) return null
+    const today = data.forecasts?.[0]
+    if (!today) return null
     const w = {
-      temp: c.temp_C,
-      feelsLike: c.FeelsLikeC,
-      desc: c.lang_ja?.[0]?.value || c.weatherDesc?.[0]?.value || '',
-      maxTemp: t?.maxtempC || '?',
-      minTemp: t?.mintempC || '?',
-      rainChance: t?.hourly?.[4]?.chanceofrain || '0',
-      humidity: c.humidity
+      telop: today.telop || '',
+      detail: today.detail?.weather || '',
+      maxTemp: today.temperature?.max?.celsius || '?',
+      minTemp: today.temperature?.min?.celsius || '?',
+      wind: today.detail?.wind || '',
+      chanceOfRain: today.chanceOfRain || {}
     }
-    console.log(`🌤️ 天気: ${w.desc} ${w.temp}°C`)
+    // 降水確率をまとめる
+    const rain = w.chanceOfRain
+    const rainStr = rain['T12_18'] || rain['T06_12'] || rain['T18_24'] || '?'
+    w.rainChance = rainStr
+    console.log(`🌤️ 天気: ${w.telop} 最高${w.maxTemp}°C`)
     return w
   } catch {
     console.log('🌤️ 天気取得失敗')
@@ -3621,7 +3624,7 @@ async function generateMorningShow(autoRecord = false) {
     ? `【ニュース（NHK）】\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
     : '【ニュースなし】'
   const weatherText = weather
-    ? `【天気（東京）】${weather.desc} ${weather.temp}°C（体感${weather.feelsLike}°C）最高${weather.maxTemp}°C/最低${weather.minTemp}°C 降水確率${weather.rainChance}% 湿度${weather.humidity}%`
+    ? `【天気予報（東京・気象庁）】${weather.telop} 最高${weather.maxTemp}°C/最低${weather.minTemp}°C 降水確率${weather.rainChance} 詳細: ${weather.detail}`
     : '【天気情報なし】'
   const historyText = history.length > 0
     ? `【今日は何の日】\n${history.join('\n')}`
