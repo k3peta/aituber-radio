@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Web Speech API テスト</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+      background: #0a0a1a;
+      color: #e8e8e8;
+      padding: 32px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    h1 { color: #e94560; margin-bottom: 8px; font-size: 20px; }
+    p.desc { color: #888; font-size: 13px; margin-bottom: 24px; }
+    .section { margin-bottom: 24px; }
+    label { display: block; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+    select, input, textarea {
+      width: 100%;
+      padding: 8px 12px;
+      background: #1a1a30;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      color: #eee;
+      font-size: 14px;
+    }
+    textarea { height: 120px; resize: vertical; line-height: 1.6; }
+    .row { display: flex; gap: 12px; align-items: end; }
+    .row > div { flex: 1; }
+    button {
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #e94560, #c73e54);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    button:hover { transform: scale(1.03); }
+    button:active { transform: scale(0.97); }
+    button.stop { background: linear-gradient(135deg, #555, #444); }
+    .controls { display: flex; gap: 8px; margin-top: 16px; }
+    #status {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #888;
+      min-height: 20px;
+    }
+    #voiceList {
+      margin-top: 16px;
+      font-size: 11px;
+      color: #666;
+      max-height: 200px;
+      overflow-y: auto;
+      background: #111;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    #voiceList div { padding: 2px 0; }
+    #voiceList div.ja { color: #e94560; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>🔊 Web Speech API テスト</h1>
+  <p class="desc">ブラウザ内蔵TTS の品質確認用。VOICEVOX不要で動作します。</p>
+
+  <div class="section">
+    <label>日本語ボイス</label>
+    <select id="voiceSelect"></select>
+  </div>
+
+  <div class="section">
+    <div class="row">
+      <div>
+        <label>速度 (rate)</label>
+        <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
+        <span id="rateVal">1.0</span>
+      </div>
+      <div>
+        <label>ピッチ (pitch)</label>
+        <input type="range" id="pitch" min="0.5" max="2" step="0.1" value="1">
+        <span id="pitchVal">1.0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <label>テスト文</label>
+    <textarea id="text">こんにちは、怪談ちゃんです！
+今日の旅ラジオは、沖縄！
+バナナって、実はベリーの仲間なの。
+あのカレーはとても辛かった。
+明日は一日中雨らしいよ。</textarea>
+  </div>
+
+  <div class="controls">
+    <button id="speakBtn">▶ 再生</button>
+    <button id="speakAllBtn">▶ 全行再生</button>
+    <button id="stopBtn" class="stop">■ 停止</button>
+  </div>
+
+  <div id="status"></div>
+
+  <details style="margin-top:24px">
+    <summary style="cursor:pointer;color:#888;font-size:13px">利用可能なボイス一覧</summary>
+    <div id="voiceList"></div>
+  </details>
+
+  <script>
+    const voiceSelect = document.getElementById('voiceSelect')
+    const rateInput = document.getElementById('rate')
+    const pitchInput = document.getElementById('pitch')
+    const rateVal = document.getElementById('rateVal')
+    const pitchVal = document.getElementById('pitchVal')
+    const textArea = document.getElementById('text')
+    const status = document.getElementById('status')
+    const voiceList = document.getElementById('voiceList')
+
+    rateInput.oninput = () => rateVal.textContent = rateInput.value
+    pitchInput.oninput = () => pitchVal.textContent = pitchInput.value
+
+    let jaVoices = []
+
+    function loadVoices() {
+      const voices = speechSynthesis.getVoices()
+      voiceSelect.innerHTML = ''
+      voiceList.innerHTML = ''
+      jaVoices = []
+
+      voices.forEach(v => {
+        const isJa = v.lang.startsWith('ja')
+        const div = document.createElement('div')
+        div.textContent = `${v.name} (${v.lang}) ${v.localService ? '[ローカル]' : '[ネットワーク]'}`
+        if (isJa) div.className = 'ja'
+        voiceList.appendChild(div)
+
+        if (isJa) {
+          jaVoices.push(v)
+          const opt = document.createElement('option')
+          opt.value = jaVoices.length - 1
+          opt.textContent = `${v.name} ${v.localService ? '[ローカル]' : '[ネットワーク]'}`
+          voiceSelect.appendChild(opt)
+        }
+      })
+
+      if (jaVoices.length === 0) {
+        const opt = document.createElement('option')
+        opt.textContent = '日本語ボイスが見つかりません'
+        voiceSelect.appendChild(opt)
+      }
+
+      status.textContent = `${voices.length}個のボイス検出、うち日本語${jaVoices.length}個`
+    }
+
+    speechSynthesis.onvoiceschanged = loadVoices
+    loadVoices()
+
+    function speakText(text) {
+      return new Promise((resolve) => {
+        const u = new SpeechSynthesisUtterance(text)
+        u.lang = 'ja-JP'
+        u.rate = parseFloat(rateInput.value)
+        u.pitch = parseFloat(pitchInput.value)
+
+        const idx = parseInt(voiceSelect.value)
+        if (jaVoices[idx]) u.voice = jaVoices[idx]
+
+        u.onstart = () => status.textContent = `🎙️ ${text.slice(0, 30)}…`
+        u.onend = () => { status.textContent = '✅ 完了'; resolve() }
+        u.onerror = (e) => { status.textContent = `❌ ${e.error}`; resolve() }
+
+        speechSynthesis.speak(u)
+      })
+    }
+
+    document.getElementById('speakBtn').onclick = () => {
+      speechSynthesis.cancel()
+      const text = textArea.value.split('\n')[0] || 'テスト'
+      speakText(text)
+    }
+
+    document.getElementById('speakAllBtn').onclick = async () => {
+      speechSynthesis.cancel()
+      const lines = textArea.value.split('\n').filter(l => l.trim())
+      for (const line of lines) {
+        await speakText(line)
+        await new Promise(r => setTimeout(r, 300))
+      }
+      status.textContent = '✅ 全行完了'
+    }
+
+    document.getElementById('stopBtn').onclick = () => {
+      speechSynthesis.cancel()
+      status.textContent = '⏹️ 停止'
+    }
+  </script>
+</body>
+</html>

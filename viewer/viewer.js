@@ -567,6 +567,11 @@ chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
 })
 
 async function checkTTS() {
+  if (ttsEngine === 'browser') {
+    ttsAvailable = true
+    voicevoxAvailable = true
+    return true
+  }
   try {
     if (ttsEngine === 'sbv2') {
       await fetch(`http://localhost:${ttsPort}/status`)
@@ -650,6 +655,39 @@ function playAudio(audioBuffer) {
       resolve()
     }
     source.start()
+  })
+}
+
+/**
+ * ブラウザ内蔵TTSで再生（Web Speech API）
+ */
+let browserTTSSpeaking = false
+function speakWithBrowser(text) {
+  return new Promise((resolve) => {
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = 'ja-JP'
+    u.rate = currentSpeedScale
+
+    // 日本語ボイスを選択
+    const voices = speechSynthesis.getVoices()
+    const jaVoice = voices.find(v => v.lang.startsWith('ja'))
+    if (jaVoice) u.voice = jaVoice
+
+    duckBGM()
+    browserTTSSpeaking = true
+
+    u.onend = () => {
+      browserTTSSpeaking = false
+      unduckBGM()
+      status.textContent = ''
+      resolve()
+    }
+    u.onerror = () => {
+      browserTTSSpeaking = false
+      unduckBGM()
+      resolve()
+    }
+    speechSynthesis.speak(u)
   })
 }
 
@@ -775,11 +813,15 @@ async function speak(text, speakerId = 38) {
       console.log(`📝 読み変換: "${text}" → "${ttsText}"`)
     }
 
-    const audioBuffer = await synthesize(ttsText, speakerId)
-    if (audioBuffer) await playAudio(audioBuffer)
+    if (ttsEngine === 'browser') {
+      await speakWithBrowser(ttsText)
+    } else {
+      const audioBuffer = await synthesize(ttsText, speakerId)
+      if (audioBuffer) await playAudio(audioBuffer)
+    }
   } catch (e) {
-    const msg = e.message.includes('Failed to fetch')
-      ? 'VOICEVOXとの通信に失敗しました'
+    const msg = e.message?.includes('Failed to fetch')
+      ? 'TTSとの通信に失敗しました'
       : e.message
     status.textContent = `❌ ${msg}`
     console.error('speak error:', e)
@@ -800,10 +842,31 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
   // AI読み変換（バッチ処理 — 再生前に一括変換）
   const ttsTexts = await convertReadingsForTTS(lines)
 
+  // ブラウザTTS: 先読み不要、順次再生
+  if (ttsEngine === 'browser') {
+    for (let i = 0; i < lines.length; i++) {
+      if (stopRequested) return true
+      const line = lines[i]
+      const ttsText = ttsTexts[i] || line.text
+      if (onLine) onLine(line, i)
+      if (ttsText !== line.text) {
+        console.log(`📝 [${i}] 表示: "${line.text}" → TTS: "${ttsText}"`)
+      }
+      await speakWithBrowser(ttsText)
+      if (stopRequested) return true
+      const pause = line.text.endsWith('？') ? 400
+        : line.text.endsWith('！') ? 250
+        : line.text.endsWith('…') || line.text.endsWith('……') ? 500
+        : 200
+      await sleep(pause)
+    }
+    return false
+  }
+
+  // VOICEVOX/SBV2: 先読み合成パイプライン
   let prefetchedBuffer = null
   let prefetchPromise = null
 
-  // 最初の行を即座に先読み開始（変換後テキストで）
   const firstSpeaker = lines[0]?.speaker || defaultSpeaker
   prefetchPromise = synthesize(ttsTexts[0], firstSpeaker).catch(() => null)
 
@@ -814,10 +877,8 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
     const speaker = line.speaker || defaultSpeaker
     const ttsText = ttsTexts[i] || line.text
 
-    // コールバック（字幕・表情設定）— 原文テキストで表示
     if (onLine) onLine(line, i)
 
-    // 読み変換があった場合ログ
     if (ttsText !== line.text) {
       console.log(`📝 [${i}] 表示: "${line.text}" → TTS: "${ttsText}"`)
     }
@@ -826,7 +887,6 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
       let audioBuffer
       const t0 = performance.now()
 
-      // 先読み結果を待つ or 新規合成
       if (prefetchPromise) {
         audioBuffer = await prefetchPromise
         prefetchPromise = null
@@ -840,7 +900,6 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
         console.log(`🔊 [${i}] sync synth: ${(performance.now() - t0).toFixed(0)}ms`)
       }
 
-      // 次の行を先読み合成開始（変換後テキストで）
       if (i + 1 < lines.length && !stopRequested) {
         const nextLine = lines[i + 1]
         const nextSpeaker = nextLine.speaker || defaultSpeaker
@@ -848,13 +907,11 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
         prefetchPromise = synthesize(nextTtsText, nextSpeaker).catch(() => null)
       }
 
-      // 現在の行を再生
       const t1 = performance.now()
       if (audioBuffer) await playAudio(audioBuffer)
       console.log(`🔊 [${i}] playback: ${(performance.now() - t1).toFixed(0)}ms`)
       if (stopRequested) return true
 
-      // 文末に応じた間（ベース500ms + 文末調整）
       const pause = line.text.endsWith('？') ? 400
         : line.text.endsWith('！') ? 250
         : line.text.endsWith('…') || line.text.endsWith('……') ? 500

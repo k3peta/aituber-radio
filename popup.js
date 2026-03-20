@@ -371,7 +371,8 @@ document.getElementById('saveTTSSettings').addEventListener('click', async () =>
 // 復元
 chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
   if (data.ttsEngine) {
-    const radio = document.getElementById(data.ttsEngine === 'sbv2' ? 'ttsSbv2' : data.ttsEngine === 'custom' ? 'ttsCustom' : 'ttsVoicevox')
+    const radioId = { sbv2: 'ttsSbv2', custom: 'ttsCustom', browser: 'ttsBrowser', voicevox: 'ttsVoicevox' }[data.ttsEngine] || 'ttsVoicevox'
+    const radio = document.getElementById(radioId)
     if (radio) radio.checked = true
     document.getElementById('ttsModelGroup').style.display = data.ttsEngine === 'sbv2' ? 'block' : 'none'
   }
