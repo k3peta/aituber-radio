@@ -459,3 +459,45 @@ chrome.storage.local.get(['characterPrompt'], (data) => {
     aiDot.className = 'dot dot-yellow'
   }
 })()
+
+// ============================================
+// 自動化
+// ============================================
+document.getElementById('generateMorningBtn')?.addEventListener('click', async () => {
+  const autoRecord = document.getElementById('autoRecordMorning')?.checked || false
+  await sendToViewer('generate-morning-show', { autoRecord })
+})
+
+// 毎朝アラーム設定
+document.getElementById('dailyAlarmEnabled')?.addEventListener('change', async (e) => {
+  const enabled = e.target.checked
+  const time = document.getElementById('dailyAlarmTime')?.value || '07:00'
+  await chrome.storage.local.set({ dailyAlarmEnabled: enabled, dailyAlarmTime: time })
+
+  if (enabled) {
+    await chrome.runtime.sendMessage({ action: 'set-daily-alarm', time })
+  } else {
+    await chrome.runtime.sendMessage({ action: 'clear-daily-alarm' })
+  }
+})
+
+document.getElementById('dailyAlarmTime')?.addEventListener('change', async (e) => {
+  const enabled = document.getElementById('dailyAlarmEnabled')?.checked
+  const time = e.target.value
+  await chrome.storage.local.set({ dailyAlarmTime: time })
+  if (enabled) {
+    await chrome.runtime.sendMessage({ action: 'set-daily-alarm', time })
+  }
+})
+
+// 復元
+chrome.storage.local.get(['dailyAlarmEnabled', 'dailyAlarmTime', 'autoRecordMorning'], (data) => {
+  if (data.dailyAlarmEnabled) document.getElementById('dailyAlarmEnabled').checked = true
+  if (data.dailyAlarmTime) document.getElementById('dailyAlarmTime').value = data.dailyAlarmTime
+  if (data.autoRecordMorning) document.getElementById('autoRecordMorning').checked = true
+})
+
+document.getElementById('autoRecordMorning')?.addEventListener('change', (e) => {
+  chrome.storage.local.set({ autoRecordMorning: e.target.checked })
+})
+

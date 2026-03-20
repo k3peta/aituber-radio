@@ -2899,6 +2899,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'play-default-setlist':
       loadAndPlayDefaultSetlist()
       break
+    case 'generate-morning-show':
+      generateMorningShow(msg.autoRecord || false)
+      break
     case 'play-script':
       // ポップアップから台本名を指定して再生
       (async () => {

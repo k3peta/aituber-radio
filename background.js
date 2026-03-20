@@ -122,7 +122,7 @@ chrome.runtime.onMessageExternal.addListener(async (msg, sender, sendResponse) =
 })
 
 // ============================================
-// 内部メッセージハンドラー（ビューワーからの指示）
+// 内部メッセージハンドラー（ビューワー・ポップアップからの指示）
 // ============================================
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'resize-window' && msg.width && msg.height) {
@@ -132,5 +132,81 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }).then(() => sendResponse({ ok: true }))
     .catch(e => sendResponse({ error: e.message }))
     return true
+  }
+
+  // 毎朝アラーム設定
+  if (msg.action === 'set-daily-alarm') {
+    const [h, m] = (msg.time || '07:00').split(':').map(Number)
+    const now = new Date()
+    const target = new Date(now)
+    target.setHours(h, m, 0, 0)
+    if (target <= now) target.setDate(target.getDate() + 1)
+    const delayMs = target.getTime() - now.getTime()
+    chrome.alarms.create('daily-morning-show', {
+      delayInMinutes: delayMs / 60000,
+      periodInMinutes: 24 * 60
+    })
+    console.log(`⏰ 毎朝アラーム設定: ${msg.time} (${Math.round(delayMs / 60000)}分後)`)
+    sendResponse({ ok: true })
+    return
+  }
+
+  if (msg.action === 'clear-daily-alarm') {
+    chrome.alarms.clear('daily-morning-show')
+    console.log('⏰ 毎朝アラーム解除')
+    sendResponse({ ok: true })
+    return
+  }
+})
+
+// ============================================
+// アラーム発火 → モーニングショー生成
+// ============================================
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'daily-morning-show') {
+    console.log('⏰ モーニングショーアラーム発火')
+    const data = await chrome.storage.local.get(['autoRecordMorning'])
+    const autoRecord = data.autoRecordMorning || false
+
+    const viewerUrl = chrome.runtime.getURL('viewer/index.html')
+    const tabs = await chrome.tabs.query({})
+    let viewerTab = tabs.find(t => t.url && t.url.startsWith(viewerUrl))
+
+    if (!viewerTab) {
+      const tab = await chrome.tabs.create({ url: viewerUrl })
+      // 読み込み完了を待つ
+      await new Promise(resolve => {
+        chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+          if (tabId === tab.id && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener)
+            resolve()
+          }
+        })
+      })
+      await new Promise(r => setTimeout(r, 3000))
+      viewerTab = tab
+    }
+
+    chrome.tabs.sendMessage(viewerTab.id, {
+      action: 'generate-morning-show',
+      autoRecord
+    })
+  }
+})
+
+// 起動時にアラーム復元
+chrome.storage.local.get(['dailyAlarmEnabled', 'dailyAlarmTime'], (data) => {
+  if (data.dailyAlarmEnabled && data.dailyAlarmTime) {
+    const [h, m] = data.dailyAlarmTime.split(':').map(Number)
+    const now = new Date()
+    const target = new Date(now)
+    target.setHours(h, m, 0, 0)
+    if (target <= now) target.setDate(target.getDate() + 1)
+    const delayMs = target.getTime() - now.getTime()
+    chrome.alarms.create('daily-morning-show', {
+      delayInMinutes: delayMs / 60000,
+      periodInMinutes: 24 * 60
+    })
+    console.log(`⏰ アラーム復元: ${data.dailyAlarmTime}`)
   }
 })

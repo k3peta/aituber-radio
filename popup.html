@@ -355,6 +355,31 @@
     </details>
   </div>
 
+  <!-- 自動化 -->
+  <div style="padding:0 16px;margin-bottom:8px">
+    <details>
+      <summary style="cursor:pointer;font-size:12px;color:#e94560;font-weight:700;padding:6px 0">🤖 自動化</summary>
+      <div style="padding:8px 0;font-size:11px">
+        <button id="generateMorningBtn"
+                style="width:100%;padding:8px;background:linear-gradient(135deg,#e94560,#c73e54);border:none;border-radius:8px;color:white;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px">
+          🌅 おはようラジオ生成 & 再生
+        </button>
+        <label style="display:flex;align-items:center;gap:6px;color:#aaa;cursor:pointer;margin-bottom:6px">
+          <input type="checkbox" id="autoRecordMorning"> 録画も行う（WebM保存）
+        </label>
+        <div style="height:1px;background:#2a2a3a;margin:6px 0"></div>
+        <label style="display:flex;align-items:center;gap:6px;color:#aaa;cursor:pointer;margin-bottom:4px">
+          <input type="checkbox" id="dailyAlarmEnabled"> 毎朝自動実行
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:20px">
+          <span style="color:#666;font-size:10px">実行時刻:</span>
+          <input type="time" id="dailyAlarmTime" value="07:00"
+                 style="font-size:11px;padding:2px 6px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee;width:90px">
+        </div>
+      </div>
+    </details>
+  </div>
+
   <!-- ステータス -->
   <div class="status-bar">
     <div class="status-item" id="status">
