@@ -106,8 +106,8 @@ if [ "$MODE" = "local" ]; then
   echo "  拡張ID: ${EXT_ID:0:8}..."
   echo ""
 
-  # Python HTTPサーバーをバックグラウンドで起動
-  python3 -m http.server "$LOCAL_PORT" -d "$SERVE_DIR" --bind 127.0.0.1 &>/dev/null &
+  # CORS対応HTTPサーバーをバックグラウンドで起動
+  python3 "$SCRIPT_DIR/cors-server.py" "$LOCAL_PORT" "$SERVE_DIR" &>/dev/null &
   SERVER_PID=$!
   sleep 1
 
