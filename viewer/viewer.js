@@ -329,6 +329,9 @@ async function startRecording(silent = false) {
   if (isRecording) return
 
   try {
+    // isRecording を先に設定（合成レンダリングループで参照するため）
+    isRecording = true
+
     // 合成Canvas録画開始
     startCompositeRender()
 
@@ -375,7 +378,6 @@ async function startRecording(silent = false) {
     }
 
     mediaRecorder.start(1000)
-    isRecording = true
     recordingStartTime = Date.now()
     updateRecordButton()
     console.log(`📹 合成Canvas録画開始（権限不要・${silent ? 'auto' : 'manual'}）`)
