@@ -1088,7 +1088,14 @@ function parseScript(mdText) {
     }
 
     if (!trimmed) continue
-    if (trimmed.startsWith('#')) continue
+    if (trimmed.startsWith('#')) {
+      // セクション見出し: ダイアログにセクション境界として含める
+      const sectionText = trimmed.replace(/^#+\s*/, '')
+      if (sectionText) {
+        dialogues.push({ emotion: 'neutral', intensity: 0.75, text: sectionText, _sectionStart: true })
+      }
+      continue
+    }
     if (trimmed.startsWith('//')) continue
     if (trimmed.startsWith('<!--')) continue
     // URL行 → 「URL」と読み上げ
@@ -1401,10 +1408,10 @@ async function playScriptWithJingles(script) {
   isPlaying = true
   stopRequested = false
 
-  // セクション境界を検出: テキストが # で始まる行にマーカーを付ける
+  // セクション境界を検出: _sectionStart フラグでカウント
   let sectionCount = 0
   for (const d of rawDialogues) {
-    if (d.text && d.text.startsWith('#')) {
+    if (d._sectionStart) {
       d._sectionIdx = sectionCount++
     }
   }
@@ -1446,8 +1453,7 @@ async function playScriptWithJingles(script) {
       }
 
       setEmotion(line.emotion, line.intensity)
-      const displayText = line.text.replace(/^#\s*/, '')
-      showSubtitle(displayText, `${title}（${i + 1}/${dialogues.length}）`)
+      showSubtitle(line.text, `${title}（${i + 1}/${dialogues.length}）`)
       await speakWithBrowser(ttsTexts[i] || line.text)
     }
   } else {
@@ -1468,8 +1474,7 @@ async function playScriptWithJingles(script) {
       }
 
       setEmotion(line.emotion, line.intensity)
-      const displayText = line.text.replace(/^#\s*/, '')
-      showSubtitle(displayText, `${title}（${i + 1}/${dialogues.length}）`)
+      showSubtitle(line.text, `${title}（${i + 1}/${dialogues.length}）`)
 
       const ttsText = ttsTexts[i] || line.text
       let buffer = prefetchedBuffer
