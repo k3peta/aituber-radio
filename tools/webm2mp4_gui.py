@@ -116,6 +116,7 @@ class CircularProgress:
         cmd = [
             "ffmpeg", "-y", "-i", filepath,
             "-c:v", "libx264", "-c:a", "aac",
+            "-vsync", "cfr", "-r", "30",
             "-movflags", "+faststart",
             "-progress", "pipe:1",
             "-loglevel", "error",
