@@ -3709,6 +3709,41 @@ ${historyText}
       return
     }
 
+    // メディアファイル検出（フォルダ読み込み済みの場合）
+    const availableJingles = []
+    for (let i = 1; i <= 4; i++) {
+      if (localFiles.has(`media/jingle${i}.mp3`) || localFiles.has(`media/jingle${i}.wav`)) {
+        const ext = localFiles.has(`media/jingle${i}.mp3`) ? 'mp3' : 'wav'
+        availableJingles.push(`media/jingle${i}.${ext}`)
+      }
+    }
+    const hasBGM = localFiles.has('media/bgm.mp3') || localFiles.has('media/bgm.wav')
+    const bgmFile = hasBGM ? (localFiles.has('media/bgm.mp3') ? 'media/bgm.mp3' : 'media/bgm.wav') : null
+    const hasOpening = localFiles.has('media/opening.jpg') || localFiles.has('media/opening.png')
+    const openingFile = hasOpening ? (localFiles.has('media/opening.jpg') ? 'media/opening.jpg' : 'media/opening.png') : null
+
+    console.log(`🎵 ジングル: ${availableJingles.length}個, BGM: ${hasBGM}, opening: ${hasOpening}`)
+
+    // ジングル挿入: # コーナー名 の前にジングルセグメントを挿入
+    let enrichedScript = scriptText
+    if (availableJingles.length > 0) {
+      // コーナー見出しを検出して番号を振る
+      const sectionPattern = /^(# .+)$/gm
+      let sectionIndex = 0
+      enrichedScript = scriptText.replace(sectionPattern, (match) => {
+        const jingleIdx = Math.min(sectionIndex, availableJingles.length - 1)
+        const jingle = availableJingles[jingleIdx]
+        sectionIndex++
+        // 最初のセクション(挨拶)にはジングルなし
+        if (sectionIndex === 1) return match
+        return `\n[type: jingle]\n[audio: ${jingle}]\n${match}`
+      })
+    }
+
+    // BGM挿入
+    const bgmDirective = bgmFile ? `[bgm: ${bgmFile}]\n[bgmVolume: 0.15]\n` : ''
+    const openingDirective = openingFile ? `[overlay: ${openingFile}]\n` : ''
+
     // 生成されたテキストをパースして再生
     const fullScript = `---
 title: 怪談ちゃんの${showName}（${now.getMonth() + 1}/${now.getDate()}）
@@ -3716,7 +3751,7 @@ speaker: 38
 speed: 0.95
 ---
 
-${scriptText}`
+${openingDirective}${bgmDirective}${enrichedScript}`
 
     const parsed = parseScript(fullScript)
     console.log(`📝 自動生成台本: ${parsed.dialogues.length}行`)
