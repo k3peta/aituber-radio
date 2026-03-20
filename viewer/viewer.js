@@ -2391,13 +2391,24 @@ async function playSetlist(setlist) {
     }
   }
 
+  // 自動録画チェック
+  let autoRecording = false
+  try {
+    const arData = await chrome.storage.local.get(['autoRecordMorning'])
+    if (arData.autoRecordMorning && !isRecording) {
+      status.textContent = '📹 自動録画開始...'
+      await startRecording(true)
+      await sleep(1000)
+      autoRecording = true
+    }
+  } catch {}
+
   // 録画中であればフェードイン開始 + スプラッシュ画像
   if (isRecording && recordFadeAlpha > 0) {
     if (meta.splash) {
       recordSplashImg = new Image()
       recordSplashImg.crossOrigin = 'anonymous'
       recordSplashImg.src = meta.splash
-      // 画像ロード待ち（最大1秒）
       await new Promise(r => {
         recordSplashImg.onload = r
         recordSplashImg.onerror = r
@@ -3803,7 +3814,7 @@ async function fetchTodayInHistoryForShow() {
   return results
 }
 
-async function generateMorningShow(autoRecord = false) {
+async function generateMorningShow() {
   if (isPlaying) {
     stopRequested = true
     return
@@ -3987,14 +3998,7 @@ ${sectionBody}
 
     console.log('📝 セットリスト生成完了')
 
-    // 自動録画モード
-    if (autoRecord) {
-      status.textContent = '📹 録画開始...'
-      await startRecording(true) // tabCapture: ダイアログなし
-      await sleep(1000) // 録画安定待ち
-    }
-
-    // 通常の台本再生と同じパスで再生
+    // 通常の台本再生と同じパスで再生（録画もplaySetlist側で自動制御）
     if (isSetlist(setlistMd)) {
       const setlist = parseSetlist(setlistMd)
       console.log(`📝 自動生成台本: ${setlist.segments.length}セグメント`)
@@ -4007,17 +4011,9 @@ ${sectionBody}
       await playScript(parsed)
     }
 
-    // 自動録画終了
-    if (autoRecord && isRecording) {
-      await sleep(500)
-      stopRecording()
-      console.log('📹 自動録画完了')
-    }
-
   } catch (e) {
     console.error('Morning show error:', e)
     status.textContent = `❌ 生成エラー: ${e.message}`
-    if (autoRecord && isRecording) stopRecording()
   }
 }
 
