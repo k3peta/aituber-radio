@@ -1525,13 +1525,23 @@ async function playJingleSimple(url) {
     const arrayBuf = await res.arrayBuffer()
     const audioBuf = await audioCtx.decodeAudioData(arrayBuf)
     const source = audioCtx.createBufferSource()
+    const gain = audioCtx.createGain()
     source.buffer = audioBuf
-    source.connect(masterGain)
-    source.start()
-    await new Promise(resolve => {
-      source.onended = resolve
-      setTimeout(resolve, audioBuf.duration * 1000 + 500)
-    })
+    source.connect(gain)
+    gain.connect(masterGain)
+
+    const maxDuration = Math.min(audioBuf.duration, 5) // 最大5秒
+    const fadeStart = maxDuration - 1 // 最後1秒でフェードアウト
+
+    gain.gain.setValueAtTime(1, audioCtx.currentTime)
+    if (fadeStart > 0) {
+      gain.gain.setValueAtTime(1, audioCtx.currentTime + fadeStart)
+      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + maxDuration)
+    }
+
+    source.start(0, 0, maxDuration)
+    await new Promise(resolve => setTimeout(resolve, maxDuration * 1000 + 200))
+    source.stop()
   } catch (e) {
     console.warn('🎵 ジングル再生失敗:', e.message)
   }
