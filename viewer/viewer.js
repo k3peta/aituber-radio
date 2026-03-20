@@ -3910,6 +3910,25 @@ speed: 0.95
 ---
 
 `
+    // オープニング演出（opening.jpg + jingle1）
+    if (openingFile && availableJingles.length > 0) {
+      setlistMd += `# オープニング
+[type: jingle]
+[file: ${availableJingles[0]}]
+[overlay: ${openingFile}]
+[duration: 5]
+[fadeOut: 1.5]
+
+`
+    } else if (openingFile) {
+      setlistMd += `# オープニング
+[type: jingle]
+[overlay: ${openingFile}]
+[duration: 3]
+
+`
+    }
+
     let sectionIdx = 0
     for (const section of sections) {
       const trimmed = section.trim()
