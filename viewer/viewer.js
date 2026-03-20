@@ -526,6 +526,10 @@ function disablePNGTuber() {
 
 // 音量取得（LipSync と PNGTuber で共有）
 function getAudioVolume() {
+  // ブラウザTTS使用中: analyserに信号が来ないのでシミュレート
+  if (browserTTSSpeaking) {
+    return 0.3 + Math.random() * 0.4 // 0.3〜0.7でランダム口パク
+  }
   analyser.getFloatTimeDomainData(timeDomainData)
   let volume = 0
   for (let i = 0; i < timeDomainData.length; i++) {
