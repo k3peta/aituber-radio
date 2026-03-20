@@ -2793,6 +2793,12 @@ async function playSetlist(setlist) {
     }
   }
 
+  // 録画中なら1周で自動停止（ループ再生は録画停止後に続行）
+  if (isRecording) {
+    await sleep(2000) // エンディングの余韻
+    stopRecording()
+  }
+
   // ループ対応 — loop: true [waitMs]
   const loopMatch = String(meta.loop || '').match(/true\s*(\d+)?/i)
   if (loopMatch || meta.loop === true) {
@@ -2809,12 +2815,6 @@ async function playSetlist(setlist) {
   setEmotion('neutral')
   status.textContent = `✅ 「${title}」放送終了`
   isPlaying = false
-
-  // 録画中なら自動停止
-  if (isRecording) {
-    await sleep(2000) // エンディングの余韻
-    stopRecording()
-  }
 
   function cleanup() {
     hideSubtitle()

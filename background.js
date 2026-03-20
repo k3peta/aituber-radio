@@ -141,12 +141,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ error: 'No tab ID' })
       return
     }
-    chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (streamId) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ error: chrome.runtime.lastError.message })
-      } else {
-        sendResponse({ streamId })
-      }
+    // まずタブをアクティブにする（tabCapture要件）
+    chrome.tabs.update(tabId, { active: true }, () => {
+      chrome.tabCapture.getMediaStreamId({ consumerTabId: tabId, targetTabId: tabId }, (streamId) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ error: chrome.runtime.lastError.message })
+        } else {
+          sendResponse({ streamId })
+        }
+      })
     })
     return true
   }
