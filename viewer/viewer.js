@@ -2613,9 +2613,13 @@ async function playSetlist(setlist) {
 
     // セグメント共通: BGM制御
     if (seg.props.bgm) {
-      const bgmUrl = await resolveMediaURL(seg.props.bgm)
-      if (bgmUrl) {
-        await startBGM(bgmUrl, seg.props.bgmvolume || seg.props.bgmVolume || 0.25)
+      if (seg.props.bgm === 'none' || seg.props.bgm === 'off' || seg.props.bgm === 'stop') {
+        await stopBGM()
+      } else {
+        const bgmUrl = await resolveMediaURL(seg.props.bgm)
+        if (bgmUrl) {
+          await startBGM(bgmUrl, seg.props.bgmvolume || seg.props.bgmVolume || seg.props.volume || 0.25)
+        }
       }
     } else if (seg.props.bgmstop || seg.props.bgmStop) {
       await stopBGM()
@@ -2629,6 +2633,15 @@ async function playSetlist(setlist) {
         if (seg.props.bg) {
           const bgUrl = await resolveMediaURL(seg.props.bg)
           if (bgUrl) changeBackground(bgUrl)
+        }
+        // フロート画像（図表・スライド）
+        if (seg.props.float) {
+          if (seg.props.float === 'none' || seg.props.float === 'off') {
+            hideFloat()
+          } else {
+            const floatUrl = await resolveMediaURL(seg.props.float)
+            if (floatUrl) showFloat(floatUrl)
+          }
         }
 
         // テキスト再生
@@ -3014,6 +3027,31 @@ async function playSetlist(setlist) {
 // ============================================
 function changeBackground(imageUrl) {
   document.getElementById('bg-layer').style.backgroundImage = `url('${imageUrl}')`
+}
+
+// ============================================
+// フロート画像（図表・スライド表示）
+// ============================================
+function showFloat(imageUrl) {
+  const overlay = document.getElementById('float-overlay')
+  const img = document.getElementById('float-image')
+  if (!overlay || !img) return
+  img.src = imageUrl
+  img.onload = () => {
+    overlay.classList.add('visible')
+    console.log('🖼️ Float shown:', imageUrl)
+  }
+  img.onerror = () => {
+    console.warn('⚠️ Float image load failed:', imageUrl)
+  }
+}
+
+function hideFloat() {
+  const overlay = document.getElementById('float-overlay')
+  if (overlay) {
+    overlay.classList.remove('visible')
+    console.log('🖼️ Float hidden')
+  }
 }
 
 // ============================================

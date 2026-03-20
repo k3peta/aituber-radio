@@ -97,6 +97,39 @@
       color: #e8e8e8;
     }
 
+    /* フロート画像オーバーレイ（図表・スライド表示用） */
+    #float-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #float-overlay.visible {
+      opacity: 1;
+    }
+    #float-overlay img {
+      max-width: 75%;
+      max-height: 70%;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.1);
+      background: rgba(255, 255, 255, 0.95);
+      padding: 16px;
+    }
+    body.vertical-mode #float-overlay img {
+      max-width: 85%;
+      max-height: 45%;
+      margin-top: -15%;
+    }
+
     /* 縦動画モード（size 指定で height > width の場合） */
     body.vertical-mode #subtitle-box {
       bottom: auto;
@@ -292,6 +325,9 @@
   <div id="controls-hint">左ドラッグ: 回転 ／ 右ドラッグ: 移動 ／ ホイール: ズーム</div>
   <div id="drop-zone">VRM / 台本 / 背景画像 / PNG立ち絵 をドロップ</div>
   <div id="jingle-overlay"><img id="jingle-image" src="" alt=""></div>
+
+  <!-- フロート画像オーバーレイ（図表・スライド表示） -->
+  <div id="float-overlay"><img id="float-image" src="" alt=""></div>
 
   <!-- PNGTuber レイヤー -->
   <div id="pngtuber-layer" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2;display:none;pointer-events:none">
