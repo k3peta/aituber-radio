@@ -3895,6 +3895,8 @@ ${historyText}
     }
     const hasBGM = localFiles.has('media/bgm.mp3') || localFiles.has('media/bgm.wav')
     const bgmFile = hasBGM ? (localFiles.has('media/bgm.mp3') ? 'media/bgm.mp3' : 'media/bgm.wav') : null
+    const hasOpening = localFiles.has('media/opening.jpg') || localFiles.has('media/opening.png')
+    const openingFile = hasOpening ? (localFiles.has('media/opening.jpg') ? 'media/opening.jpg' : 'media/opening.png') : null
     // ending画像も検出
     const hasEnding = localFiles.has('media/ending.jpg') || localFiles.has('media/ending.png')
     const endingFile = hasEnding ? (localFiles.has('media/ending.jpg') ? 'media/ending.jpg' : 'media/ending.png') : null
