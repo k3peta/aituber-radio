@@ -3590,24 +3590,34 @@ async function fetchWeatherForShow() {
 }
 
 async function fetchTodayInHistoryForShow() {
+  const now = new Date()
+  const mmdd = `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+  const results = []
+
   try {
-    const now = new Date()
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    const res = await fetch(`https://ja.wikipedia.org/api/rest_v1/feed/onthisday/events/${m}/${d}`,
-      { headers: { 'User-Agent': 'AITuberRadio/1.0' } })
-    const data = await res.json()
-    const events = (data.events || [])
-      .filter(e => e.year > 1900)
-      .sort((a, b) => b.year - a.year)
-      .slice(0, 3)
-      .map(e => `${e.year}年: ${e.text}`)
-    console.log(`📅 今日は何の日: ${events.length}件`)
-    return events
-  } catch {
-    console.log('📅 今日は何の日 取得失敗')
-    return []
-  }
+    // 記念日
+    const annivRes = await fetch(`https://api.whatistoday.cyou/v3/anniv/?mmdd=${mmdd}`)
+    const anniv = await annivRes.json()
+    const anniversaries = [anniv.anniv1, anniv.anniv2, anniv.anniv3, anniv.anniv4, anniv.anniv5].filter(Boolean)
+    if (anniversaries.length > 0) results.push(`記念日: ${anniversaries.join('、')}`)
+  } catch {}
+
+  try {
+    // 誕生花
+    const flowerRes = await fetch(`https://api.whatistoday.cyou/v3/birthflower/?mmdd=${mmdd}`)
+    const flower = await flowerRes.json()
+    if (flower.flower) results.push(`誕生花: ${flower.flower}（花言葉: ${flower.lang}）`)
+  } catch {}
+
+  try {
+    // 偉人誕生日
+    const famousRes = await fetch(`https://api.whatistoday.cyou/v3/famousbirthday/?mmdd=${mmdd}`)
+    const famous = await famousRes.json()
+    if (famous.name) results.push(`今日生まれの偉人: ${famous.name}（${famous.profile}、${famous.lifespan}）`)
+  } catch {}
+
+  console.log(`📅 今日は何の日: ${results.length}件`)
+  return results
 }
 
 async function generateMorningShow(autoRecord = false) {

@@ -9,7 +9,7 @@
     "http://127.0.0.1:11180/*",
     "https://news.google.com/*",
     "https://weather.tsukumijima.net/*",
-    "https://ja.wikipedia.org/*"
+    "https://api.whatistoday.cyou/*"
   ],
   "action": {
     "default_popup": "popup.html",
