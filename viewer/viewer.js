@@ -127,6 +127,15 @@ const masterGain = audioCtx.createGain()
 masterGain.connect(audioCtx.destination)
 masterGain.connect(recordDest)
 
+// 録画用: 無音トーン（A/Vズレ防止 — オーディオストリームを常時維持）
+const silentOsc = audioCtx.createOscillator()
+const silentGain = audioCtx.createGain()
+silentOsc.frequency.value = 0
+silentGain.gain.value = 0.0001 // ほぼ無音
+silentOsc.connect(silentGain)
+silentGain.connect(recordDest)
+silentOsc.start()
+
 let capturedStream = null  // stopRecording用に保持
 
 async function startRecording(silent = false) {
