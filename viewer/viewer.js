@@ -153,10 +153,10 @@ async function startRecording(silent = false) {
     }
     
     if (!silent && !videoStream) {
-      // 手動: ユーザーにダイアログ表示
+      // 手動: ユーザーにダイアログ表示（音声もキャプチャ）
       videoStream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: 'browser', frameRate: 30 },
-        audio: false,
+        audio: true,
         preferCurrentTab: true
       })
     }
