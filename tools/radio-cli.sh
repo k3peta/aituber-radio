@@ -134,7 +134,6 @@ if [ "$MODE" = "local" ]; then
   fi
 
   SETLIST_URL="http://127.0.0.1:${LOCAL_PORT}/${LOCAL_NAME}"
-  VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?setlist=${SETLIST_URL}&record=true"
 
 else
   # カードモード
@@ -148,6 +147,11 @@ else
   python3 "$SCRIPT_DIR/cors-server.py" "$LOCAL_PORT" "$LAUNCHER_DIR" &>/dev/null &
   SERVER_PID=$!
   sleep 1
+
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "❌ ローカルサーバーの起動に失敗（ポート$LOCAL_PORT使用中？）"
+    exit 1
+  fi
 
   LAUNCHER_URL="http://127.0.0.1:${LOCAL_PORT}/cli-launcher.html?ext=${EXT_ID}&card=${CARD}&record=true"
 fi

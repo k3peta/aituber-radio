@@ -161,13 +161,19 @@ function startCompositeRender() {
 
   // 背景画像をプリロード
   let bgImage = null
-  const bgUrl = bgLayer.style.backgroundImage?.match(/url\(["']?(.+?)["']?\)/)?.[1]
-    || getComputedStyle(bgLayer).backgroundImage?.match(/url\(["']?(.+?)["']?\)/)?.[1]
-  if (bgUrl && bgUrl !== 'none') {
-    bgImage = new Image()
-    bgImage.crossOrigin = 'anonymous'
-    bgImage.src = bgUrl
+  let lastBgUrl = ''
+
+  function updateBgImage() {
+    const bgUrl = bgLayer.style.backgroundImage?.match(/url\(["']?(.+?)["']?\)/)?.[1]
+      || getComputedStyle(bgLayer).backgroundImage?.match(/url\(["']?(.+?)["']?\)/)?.[1]
+    if (bgUrl && bgUrl !== 'none' && bgUrl !== lastBgUrl) {
+      lastBgUrl = bgUrl
+      bgImage = new Image()
+      bgImage.crossOrigin = 'anonymous'
+      bgImage.src = bgUrl
+    }
   }
+  updateBgImage()
 
   function renderFrame() {
     if (!isRecording) {
@@ -177,6 +183,9 @@ function startCompositeRender() {
     const W = compositeCanvas.width
     const H = compositeCanvas.height
     const ctx = compositeCtx
+
+    // 背景画像の更新チェック
+    updateBgImage()
 
     // 1. 背景
     ctx.fillStyle = '#0a0a0a'
@@ -382,6 +391,7 @@ async function startRecording(silent = false) {
     updateRecordButton()
     console.log(`📹 合成Canvas録画開始（権限不要・${silent ? 'auto' : 'manual'}）`)
   } catch (e) {
+    isRecording = false
     console.error('Recording failed:', e)
   }
 }
@@ -4252,7 +4262,7 @@ window.generateMorningShow = generateMorningShow
 // CLI / URL パラメータ駆動
 // ============================================
 // ?card=news_morning  — Station のカードを自動再生
-// ?record=true        — 自動録画（tabCapture）
+// ?record=true        — 自動録画（合成Canvas）
 // ?setlist=URL        — 任意のセットリストURL
 ;(async () => {
   const params = new URLSearchParams(location.search)

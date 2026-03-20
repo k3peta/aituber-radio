@@ -181,25 +181,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true
   }
 
-  // タブキャプチャ（ダイアログなし）
-  if (msg.action === 'get-tab-capture-stream') {
-    const tabId = sender.tab?.id
-    if (!tabId) {
-      sendResponse({ error: 'No tab ID' })
-      return
-    }
-    // まずタブをアクティブにする（tabCapture要件）
-    chrome.tabs.update(tabId, { active: true }, () => {
-      chrome.tabCapture.getMediaStreamId({ consumerTabId: tabId, targetTabId: tabId }, (streamId) => {
-        if (chrome.runtime.lastError) {
-          sendResponse({ error: chrome.runtime.lastError.message })
-        } else {
-          sendResponse({ streamId })
-        }
-      })
-    })
-    return true
-  }
+  // (tabCapture は合成Canvas方式に移行したため削除)
 
   // 毎朝アラーム設定
   if (msg.action === 'set-daily-alarm') {
