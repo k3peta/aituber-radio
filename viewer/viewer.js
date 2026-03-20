@@ -3610,7 +3610,7 @@ async function fetchTodayInHistoryForShow() {
 
   try {
     // 記念日
-    const annivRes = await fetch(`https://api.whatistoday.cyou/v3/anniv/?mmdd=${mmdd}`)
+    const annivRes = await fetch(`https://api.whatistoday.cyou/index.cgi/v3/anniv/${mmdd}`)
     const anniv = await annivRes.json()
     const anniversaries = [anniv.anniv1, anniv.anniv2, anniv.anniv3, anniv.anniv4, anniv.anniv5].filter(Boolean)
     if (anniversaries.length > 0) results.push(`記念日: ${anniversaries.join('、')}`)
@@ -3618,14 +3618,14 @@ async function fetchTodayInHistoryForShow() {
 
   try {
     // 誕生花
-    const flowerRes = await fetch(`https://api.whatistoday.cyou/v3/birthflower/?mmdd=${mmdd}`)
+    const flowerRes = await fetch(`https://api.whatistoday.cyou/index.cgi/v3/birthflower/${mmdd}`)
     const flower = await flowerRes.json()
     if (flower.flower) results.push(`誕生花: ${flower.flower}（花言葉: ${flower.lang}）`)
   } catch {}
 
   try {
     // 偉人誕生日
-    const famousRes = await fetch(`https://api.whatistoday.cyou/v3/famousbirthday/?mmdd=${mmdd}`)
+    const famousRes = await fetch(`https://api.whatistoday.cyou/index.cgi/v3/famousbirthday/${mmdd}`)
     const famous = await famousRes.json()
     if (famous.name) results.push(`今日生まれの偉人: ${famous.name}（${famous.profile}、${famous.lifespan}）`)
   } catch {}
