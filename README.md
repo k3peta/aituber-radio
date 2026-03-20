@@ -551,6 +551,13 @@ npm run build
 - **AI 読み変換**: 漢字の誤読防止（方→かた/ほう、時→どき 等）
 - **WebM→MP4 GPU加速**: `h264_videotoolbox` で高速変換（macOS）
 - **録画 A/V同期改善**: 無音トーンで音声ストリーム維持
+- **CLI 自動録画パイプライン**: コマンド一発で再生→録画→MP4変換
+  - `bash tools/radio-cli.sh <card>` で Station カードから録画
+  - `bash tools/radio-cli.sh --local <file>` でローカル台本から録画
+  - 合成Canvas録画方式（権限ダイアログ不要・完全自動）
+  - CORS対応ローカルHTTPサーバー同梱
+  - `readings/index.json` 自動生成
+  - ループ台本でも録画は1周で自動停止
 - **Radio Station**: 朝イチニュース番組を追加
 
 ### v0.7.0 (2026-03-19)
