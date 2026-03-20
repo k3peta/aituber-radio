@@ -7,8 +7,7 @@
   "host_permissions": [
     "http://localhost:50021/*",
     "http://127.0.0.1:11180/*",
-    "https://www.nhk.or.jp/*",
-    "https://news.web.nhk.jp/*",
+    "https://news.google.com/*",
     "https://wttr.in/*",
     "https://ja.wikipedia.org/*"
   ],

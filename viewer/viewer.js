@@ -3516,20 +3516,15 @@ document.getElementById('recordBtn')?.addEventListener('click', () => {
 
 async function fetchNewsForShow() {
   try {
-    const res = await fetch('https://www.nhk.or.jp/rss/news/cat0.xml')
+    const res = await fetch('https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja')
     const xml = await res.text()
     const items = []
-    // 複数パターンで抽出
-    const patterns = [
-      /<item>[\s\S]*?<title><!\[CDATA\[(.*?)\]\]><\/title>[\s\S]*?<\/item>/g,
-      /<item>\s*<title>(.*?)<\/title>/g
-    ]
-    for (const regex of patterns) {
-      let match
-      while ((match = regex.exec(xml)) !== null && items.length < 5) {
-        if (!match[1].includes('NHK')) items.push(match[1])
-      }
-      if (items.length > 0) break
+    const regex = /<item>\s*<title>(.*?)<\/title>/g
+    let match
+    while ((match = regex.exec(xml)) !== null && items.length < 5) {
+      // Google Newsの " - ソース名" を除去
+      const title = match[1].replace(/ - [^-]+$/, '').trim()
+      if (title) items.push(title)
     }
     console.log(`📰 ニュース: ${items.length}件`)
     return items
