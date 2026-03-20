@@ -168,7 +168,10 @@ BEFORE=$(ls -1t "$DOWNLOAD_DIR"/*.webm 2>/dev/null | head -1)
 
 # ランチャー経由でbackground.jsにタブ作成+録画を指示
 echo "🚀 番組を開始中..."
-open -a "Google Chrome" "$LAUNCHER_URL"
+# --auto-select-desktop-capture-source でキャプチャダイアログを自動承認
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --auto-select-desktop-capture-source="AITuber Radio" \
+  "$LAUNCHER_URL" &>/dev/null &
 
 # 録画完了を待つ
 echo "⏳ 録画完了を待機中... (Ctrl+C で中断)"
