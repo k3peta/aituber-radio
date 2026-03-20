@@ -137,14 +137,22 @@ async function startRecording(silent = false) {
 
     if (silent) {
       // tabCapture: ダイアログなしで自動キャプチャ
-      const response = await chrome.runtime.sendMessage({ action: 'get-tab-capture-stream' })
-      if (response.error) throw new Error(response.error)
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'get-tab-capture-stream' })
+        if (response.error) throw new Error(response.error)
 
-      videoStream = await navigator.mediaDevices.getUserMedia({
-        audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } },
-        video: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } }
-      })
-    } else {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } },
+          video: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: response.streamId } }
+        })
+        console.log('📹 tabCapture成功（ダイアログなし）')
+      } catch (e) {
+        console.warn('📹 tabCapture失敗、手動モードにフォールバック:', e.message)
+        silent = false // フォールバック
+      }
+    }
+    
+    if (!silent && !videoStream) {
       // 手動: ユーザーにダイアログ表示
       videoStream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: 'browser', frameRate: 30 },
