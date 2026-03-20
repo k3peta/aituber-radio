@@ -1388,6 +1388,148 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+/**
+ * ジングル付き台本再生（自動生成番組用）
+ * dialoguesの中で _sectionStart フラグが立っている行の前にジングルを再生
+ */
+async function playScriptWithJingles(script) {
+  const { meta, dialogues: rawDialogues } = script
+  const title = meta.title || '台本'
+  const jingles = meta._jingles || []
+
+  if (isPlaying) { stopRequested = true; return }
+  isPlaying = true
+  stopRequested = false
+
+  // セクション境界を検出: テキストが # で始まる行にマーカーを付ける
+  let sectionCount = 0
+  for (const d of rawDialogues) {
+    if (d.text && d.text.startsWith('#')) {
+      d._sectionIdx = sectionCount++
+    }
+  }
+
+  // AI 前処理
+  const dialogues = await preprocessWithAI(rawDialogues)
+
+  status.textContent = `📖 「${title}」再生中...`
+
+  // タイトル読み上げ
+  if (title && title !== '台本') {
+    showSubtitle(title, '📖 朗読')
+    await speak(title)
+    if (stopRequested) { cleanup(); return }
+    await sleep(800)
+  }
+
+  // パイプラインで再生（ジングル挿入付き）
+  if (audioCtx.state === 'suspended') await audioCtx.resume()
+  if (!await checkVoicevox()) { cleanup(); return }
+
+  const ttsTexts = await convertReadingsForTTS(dialogues)
+  const speaker = meta.speaker || 38
+
+  // ブラウザTTSの場合
+  if (ttsEngine === 'browser') {
+    for (let i = 0; i < dialogues.length; i++) {
+      if (stopRequested) break
+      const line = dialogues[i]
+
+      // ジングル再生チェック
+      if (line._sectionIdx !== undefined && line._sectionIdx > 0 && jingles.length > 0) {
+        const jIdx = Math.min(line._sectionIdx - 1, jingles.length - 1)
+        const jUrl = await resolveMediaURL(jingles[jIdx])
+        if (jUrl) {
+          console.log(`🎵 ジングル再生: ${jingles[jIdx]}`)
+          await playJingleSimple(jUrl)
+        }
+      }
+
+      setEmotion(line.emotion, line.intensity)
+      const displayText = line.text.replace(/^#\s*/, '')
+      showSubtitle(displayText, `${title}（${i + 1}/${dialogues.length}）`)
+      await speakWithBrowser(ttsTexts[i] || line.text)
+    }
+  } else {
+    // VOICEVOX/SBV2
+    let prefetchedBuffer = null
+    for (let i = 0; i < dialogues.length; i++) {
+      if (stopRequested) break
+      const line = dialogues[i]
+
+      // ジングル再生チェック
+      if (line._sectionIdx !== undefined && line._sectionIdx > 0 && jingles.length > 0) {
+        const jIdx = Math.min(line._sectionIdx - 1, jingles.length - 1)
+        const jUrl = await resolveMediaURL(jingles[jIdx])
+        if (jUrl) {
+          console.log(`🎵 ジングル再生: ${jingles[jIdx]}`)
+          await playJingleSimple(jUrl)
+        }
+      }
+
+      setEmotion(line.emotion, line.intensity)
+      const displayText = line.text.replace(/^#\s*/, '')
+      showSubtitle(displayText, `${title}（${i + 1}/${dialogues.length}）`)
+
+      const ttsText = ttsTexts[i] || line.text
+      let buffer = prefetchedBuffer
+      if (!buffer) {
+        buffer = await synthesize(ttsText, speaker)
+      }
+      prefetchedBuffer = null
+
+      if (buffer) {
+        // 次の行を先読み
+        if (i + 1 < dialogues.length) {
+          const nextText = ttsTexts[i + 1] || dialogues[i + 1].text
+          const prefetchPromise = synthesize(nextText, speaker)
+            .then(b => { prefetchedBuffer = b })
+            .catch(() => {})
+          await playAudioBuffer(buffer)
+          await prefetchPromise
+        } else {
+          await playAudioBuffer(buffer)
+        }
+      }
+    }
+  }
+
+  hideSubtitle()
+  setEmotion('neutral')
+  status.textContent = `✅ 「${title}」再生完了`
+  isPlaying = false
+
+  function cleanup() {
+    hideSubtitle()
+    setEmotion('neutral')
+    document.body.classList.remove('vertical-mode')
+    status.textContent = '⏹️ 再生停止'
+    isPlaying = false
+    stopRequested = false
+  }
+}
+
+/**
+ * シンプルなジングル再生（SE音のみ、オーバーレイなし）
+ */
+async function playJingleSimple(url) {
+  try {
+    const res = await fetch(url)
+    const arrayBuf = await res.arrayBuffer()
+    const audioBuf = await audioCtx.decodeAudioData(arrayBuf)
+    const source = audioCtx.createBufferSource()
+    source.buffer = audioBuf
+    source.connect(masterGain)
+    source.start()
+    await new Promise(resolve => {
+      source.onended = resolve
+      setTimeout(resolve, audioBuf.duration * 1000 + 500)
+    })
+  } catch (e) {
+    console.warn('🎵 ジングル再生失敗:', e.message)
+  }
+}
+
 // ============================================
 // Free Talk System（AI雑談 — AITuber Radio フリートーク）
 // ============================================
@@ -3724,25 +3866,8 @@ ${historyText}
 
     console.log(`🎵 ジングル: ${availableJingles.length}個, BGM: ${hasBGM}, opening: ${hasOpening}`)
 
-    // ジングル挿入: # コーナー名 の前にジングルセグメントを挿入
-    let enrichedScript = scriptText
-    if (availableJingles.length > 0) {
-      // コーナー見出しを検出して番号を振る
-      const sectionPattern = /^(# .+)$/gm
-      let sectionIndex = 0
-      enrichedScript = scriptText.replace(sectionPattern, (match) => {
-        const jingleIdx = Math.min(sectionIndex, availableJingles.length - 1)
-        const jingle = availableJingles[jingleIdx]
-        sectionIndex++
-        // 最初のセクション(挨拶)にはジングルなし
-        if (sectionIndex === 1) return match
-        return `\n[type: jingle]\n[audio: ${jingle}]\n${match}`
-      })
-    }
-
-    // BGM挿入
-    const bgmDirective = bgmFile ? `[bgm: ${bgmFile}]\n[bgmVolume: 0.15]\n` : ''
-    const openingDirective = openingFile ? `[overlay: ${openingFile}]\n` : ''
+    // ジングル挿入不要 — 直接テキストを使用
+    // BGM/openingは台本ヘッダーに含めない（playScript後に別途処理）
 
     // 生成されたテキストをパースして再生
     const fullScript = `---
@@ -3751,9 +3876,13 @@ speaker: 38
 speed: 0.95
 ---
 
-${openingDirective}${bgmDirective}${enrichedScript}`
+${scriptText}`
 
     const parsed = parseScript(fullScript)
+    // ジングルURLリストをメタデータに付与
+    parsed.meta._jingles = availableJingles
+    parsed.meta._bgm = bgmFile
+    parsed.meta._opening = openingFile
     console.log(`📝 自動生成台本: ${parsed.dialogues.length}行`)
 
     // 自動録画モード
@@ -3763,8 +3892,14 @@ ${openingDirective}${bgmDirective}${enrichedScript}`
       await sleep(1000) // 録画安定待ち
     }
 
-    // 再生
-    await playScript(parsed)
+    // BGM開始
+    if (bgmFile) {
+      const bgmUrl = await resolveMediaURL(bgmFile)
+      if (bgmUrl) startBGM(bgmUrl, 0.15)
+    }
+
+    // 再生（ジングル付き）
+    await playScriptWithJingles(parsed)
 
     // 自動録画終了
     if (autoRecord && isRecording) {
