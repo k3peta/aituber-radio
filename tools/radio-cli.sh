@@ -4,9 +4,15 @@
 # ============================================
 #
 # 使い方:
-#   bash tools/radio-cli.sh news_morning       # 朝イチニュース
-#   bash tools/radio-cli.sh ohayou             # おはようラジオ
-#   bash tools/radio-cli.sh zatsugaku          # 雑学タイム
+#   # Station カードから
+#   bash tools/radio-cli.sh news_morning
+#   bash tools/radio-cli.sh ohayou
+#
+#   # ローカル台本から
+#   bash tools/radio-cli.sh --local /path/to/project/setlist.md
+#   bash tools/radio-cli.sh --local ~/怪談ちゃん/viewer/default_setlist.md
+#
+#   # オプション
 #   bash tools/radio-cli.sh news_morning --no-convert  # WebMのみ
 #
 # 必要:
@@ -14,16 +20,46 @@
 #   - ~/.aituber-radio-ext-id に拡張機能IDが保存済み
 #     (初回: echo "YOUR_EXTENSION_ID" > ~/.aituber-radio-ext-id)
 #   - ffmpeg (MP4変換時)
+#   - python3 (ローカルモード時)
 #
 
 set -e
 
-# 引数
-CARD=${1:-news_morning}
+# 引数パース
+MODE="card"
+CARD=""
+LOCAL_FILE=""
 NO_CONVERT=false
-if [ "$2" = "--no-convert" ]; then
-  NO_CONVERT=true
+LOCAL_PORT=18923
+SERVER_PID=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --local)  MODE="local" ;;
+    --no-convert) NO_CONVERT=true ;;
+    *)
+      if [ "$MODE" = "local" ] && [ -z "$LOCAL_FILE" ]; then
+        LOCAL_FILE="$arg"
+      elif [ -z "$CARD" ]; then
+        CARD="$arg"
+      fi
+      ;;
+  esac
+done
+
+# デフォルト
+if [ "$MODE" = "card" ] && [ -z "$CARD" ]; then
+  CARD="news_morning"
 fi
+
+# クリーンアップ
+cleanup() {
+  if [ -n "$SERVER_PID" ]; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    echo "🔌 ローカルサーバー停止"
+  fi
+}
+trap cleanup EXIT
 
 # 拡張機能ID
 EXT_ID_FILE="$HOME/.aituber-radio-ext-id"
@@ -40,27 +76,74 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "📻 AITuber Radio CLI"
 echo "━━━━━━━━━━━━━━━━━━━━"
-echo "  カード: $CARD"
-echo "  拡張ID: ${EXT_ID:0:8}..."
-echo ""
+
+# ビューワーURL生成
+if [ "$MODE" = "local" ]; then
+  # ローカルモード: 一時HTTPサーバーで台本+メディアを配信
+  if [ -z "$LOCAL_FILE" ] || [ ! -f "$LOCAL_FILE" ]; then
+    echo "❌ 台本ファイルが見つかりません: $LOCAL_FILE"
+    echo "   使い方: bash radio-cli.sh --local /path/to/setlist.md"
+    exit 1
+  fi
+
+  # 台本のあるディレクトリをルートにする（media/ readings/ も配信）
+  LOCAL_DIR="$(cd "$(dirname "$LOCAL_FILE")" && pwd)"
+  LOCAL_NAME="$(basename "$LOCAL_FILE")"
+
+  # 親ディレクトリにmedia/があるかチェック（viewer/setlist.md → 親=プロジェクトルート）
+  if [ -d "$LOCAL_DIR/media" ] || [ -d "$LOCAL_DIR/readings" ]; then
+    SERVE_DIR="$LOCAL_DIR"
+  elif [ -d "$(dirname "$LOCAL_DIR")/media" ]; then
+    SERVE_DIR="$(dirname "$LOCAL_DIR")"
+    LOCAL_NAME="$(basename "$LOCAL_DIR")/$LOCAL_NAME"
+  else
+    SERVE_DIR="$LOCAL_DIR"
+  fi
+
+  echo "  モード: ローカル"
+  echo "  台本:   $LOCAL_FILE"
+  echo "  配信:   $SERVE_DIR (port $LOCAL_PORT)"
+  echo "  拡張ID: ${EXT_ID:0:8}..."
+  echo ""
+
+  # Python HTTPサーバーをバックグラウンドで起動
+  python3 -m http.server "$LOCAL_PORT" -d "$SERVE_DIR" --bind 127.0.0.1 &>/dev/null &
+  SERVER_PID=$!
+  sleep 1
+
+  # サーバー確認
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "❌ ローカルサーバーの起動に失敗（ポート$LOCAL_PORT使用中？）"
+    exit 1
+  fi
+
+  SETLIST_URL="http://127.0.0.1:${LOCAL_PORT}/${LOCAL_NAME}"
+  VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?setlist=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${SETLIST_URL}', safe=''))")&record=true"
+
+else
+  # カードモード
+  echo "  モード: Station カード"
+  echo "  カード: $CARD"
+  echo "  拡張ID: ${EXT_ID:0:8}..."
+  echo ""
+
+  VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?card=${CARD}&record=true"
+fi
 
 # 既存の最新WebMを記録
 BEFORE=$(ls -1t "$DOWNLOAD_DIR"/*.webm 2>/dev/null | head -1)
 
-# Chrome でビューワーを開く（URLパラメータで自動再生+録画）
-VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?card=${CARD}&record=true"
+# Chrome でビューワーを開く
 echo "🚀 番組を開始中..."
 open -a "Google Chrome" "$VIEWER_URL"
 
-# 録画完了を待つ（新しいWebMファイルの出現を監視）
+# 録画完了を待つ
 echo "⏳ 録画完了を待機中... (Ctrl+C で中断)"
 WEBM_FILE=""
 while true; do
   LATEST=$(ls -1t "$DOWNLOAD_DIR"/*.webm 2>/dev/null | head -1)
 
-  # 新しいファイルが出現
   if [ -n "$LATEST" ] && [ "$LATEST" != "$BEFORE" ]; then
-    # ファイルサイズが安定するまで待つ（書き込み完了確認）
     sleep 3
     SIZE1=$(stat -f%z "$LATEST" 2>/dev/null || stat --format=%s "$LATEST" 2>/dev/null)
     sleep 3

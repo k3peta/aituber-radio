@@ -4146,6 +4146,50 @@ window.generateMorningShow = generateMorningShow
       const res = await fetch(setlistUrl)
       if (!res.ok) throw new Error(`Setlist fetch failed: ${setlistUrl}`)
       setlistText = await res.text()
+
+      // セットリスト内の media/ 参照を検出してダウンロード
+      const baseUrl = setlistUrl.replace(/\/[^/]*$/, '')
+      const mediaRefs = new Set()
+      for (const match of setlistText.matchAll(/(?:file|bgm|overlay|bg):\s*(media\/[^\]]+)/g)) {
+        mediaRefs.add(match[1].trim())
+      }
+      // readings/ も検出
+      for (const match of setlistText.matchAll(/file:\s*(readings\/[^\]]+)/g)) {
+        mediaRefs.add(match[1].trim())
+      }
+      for (const ref of mediaRefs) {
+        try {
+          const mediaUrl = `${baseUrl}/${ref}`
+          const mediaRes = await fetch(mediaUrl)
+          if (mediaRes.ok) {
+            const blob = await mediaRes.blob()
+            localFiles.set(ref, URL.createObjectURL(blob))
+            console.log(`📥 ${ref} → loaded`)
+          }
+        } catch (e) {
+          console.warn(`📥 ${ref} skipped`)
+        }
+      }
+      // readings/ フォルダの index.json も試す
+      try {
+        const readingsIdx = await fetch(`${baseUrl}/readings/index.json`)
+        if (readingsIdx.ok) {
+          const list = await readingsIdx.json()
+          for (const f of list) {
+            if (!localFiles.has(`readings/${f}`)) {
+              try {
+                const r = await fetch(`${baseUrl}/readings/${f}`)
+                if (r.ok) {
+                  const blob = await r.blob()
+                  localFiles.set(`readings/${f}`, URL.createObjectURL(blob))
+                }
+              } catch {}
+            }
+          }
+          cachedReadingsList = list
+          console.log(`📥 readings: ${list.length} files`)
+        }
+      } catch {}
     }
 
     if (!setlistText) throw new Error('Empty setlist')
