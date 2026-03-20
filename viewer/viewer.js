@@ -138,22 +138,210 @@ silentOsc.start()
 
 let capturedStream = null  // stopRecording用に保持
 
+let compositeCanvas = null
+let compositeCtx = null
+let compositeAnimFrame = null
+
+function startCompositeRender() {
+  const srcCanvas = document.getElementById('canvas')
+  if (!compositeCanvas) {
+    compositeCanvas = document.createElement('canvas')
+    compositeCtx = compositeCanvas.getContext('2d')
+  }
+  compositeCanvas.width = srcCanvas.width || 1920
+  compositeCanvas.height = srcCanvas.height || 1080
+
+  const bgLayer = document.getElementById('bg-layer')
+  const jingleOverlay = document.getElementById('jingle-overlay')
+  const jingleImage = document.getElementById('jingle-image')
+  const subtitleBox = document.getElementById('subtitle-box')
+  const subtitleTitle = document.getElementById('subtitle-title')
+  const subtitleText = document.getElementById('subtitle-text')
+  const pngtuberLayer = document.getElementById('pngtuber-layer')
+
+  // 背景画像をプリロード
+  let bgImage = null
+  const bgUrl = bgLayer.style.backgroundImage?.match(/url\(["']?(.+?)["']?\)/)?.[1]
+    || getComputedStyle(bgLayer).backgroundImage?.match(/url\(["']?(.+?)["']?\)/)?.[1]
+  if (bgUrl && bgUrl !== 'none') {
+    bgImage = new Image()
+    bgImage.crossOrigin = 'anonymous'
+    bgImage.src = bgUrl
+  }
+
+  function renderFrame() {
+    if (!isRecording) {
+      compositeAnimFrame = null
+      return
+    }
+    const W = compositeCanvas.width
+    const H = compositeCanvas.height
+    const ctx = compositeCtx
+
+    // 1. 背景
+    ctx.fillStyle = '#0a0a0a'
+    ctx.fillRect(0, 0, W, H)
+    if (bgImage && bgImage.complete && bgImage.naturalWidth) {
+      // cover 描画
+      const imgRatio = bgImage.naturalWidth / bgImage.naturalHeight
+      const canvasRatio = W / H
+      let drawW, drawH, drawX, drawY
+      if (imgRatio > canvasRatio) {
+        drawH = H; drawW = H * imgRatio
+        drawX = (W - drawW) / 2; drawY = 0
+      } else {
+        drawW = W; drawH = W / imgRatio
+        drawX = 0; drawY = (H - drawH) / 2
+      }
+      ctx.drawImage(bgImage, drawX, drawY, drawW, drawH)
+    }
+    // グラデーションオーバーレイ
+    const grad = ctx.createLinearGradient(0, 0, 0, H)
+    grad.addColorStop(0, 'rgba(0,0,0,0.15)')
+    grad.addColorStop(0.4, 'rgba(0,0,0,0.05)')
+    grad.addColorStop(0.8, 'rgba(0,0,0,0.3)')
+    grad.addColorStop(1, 'rgba(0,0,0,0.7)')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+
+    // 2. PNGTuber レイヤー
+    if (pngtuberLayer && pngtuberLayer.style.display !== 'none') {
+      const imgs = [
+        document.getElementById('pngtuber-talk'),
+        document.getElementById('pngtuber-blink'),
+        document.getElementById('pngtuber-idle')
+      ]
+      for (const img of imgs) {
+        if (img && img.style.display !== 'none' && img.complete && img.naturalWidth) {
+          const imgRatio = img.naturalWidth / img.naturalHeight
+          const maxH = H * 0.9
+          const maxW = W * 0.9
+          let drawH = maxH
+          let drawW = drawH * imgRatio
+          if (drawW > maxW) { drawW = maxW; drawH = drawW / imgRatio }
+          const drawX = (W - drawW) / 2
+          const drawY = H - drawH
+          ctx.drawImage(img, drawX, drawY, drawW, drawH)
+          break  // 最初に表示されている画像のみ
+        }
+      }
+    }
+
+    // 3. VRM Canvas (WebGL)
+    if (!pngtuberLayer || pngtuberLayer.style.display === 'none') {
+      try {
+        ctx.drawImage(srcCanvas, 0, 0, W, H)
+      } catch (e) { /* WebGL context lost */ }
+    }
+
+    // 4. ジングルオーバーレイ
+    if (jingleOverlay && jingleOverlay.classList.contains('visible')) {
+      const opacity = parseFloat(getComputedStyle(jingleOverlay).opacity) || 1
+      ctx.save()
+      ctx.globalAlpha = opacity
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, W, H)
+      if (jingleImage && jingleImage.complete && jingleImage.naturalWidth && jingleImage.src) {
+        const imgRatio = jingleImage.naturalWidth / jingleImage.naturalHeight
+        const canvasRatio = W / H
+        let drawW, drawH
+        if (imgRatio > canvasRatio) {
+          drawW = W; drawH = W / imgRatio
+        } else {
+          drawH = H; drawW = H * imgRatio
+        }
+        ctx.drawImage(jingleImage, (W - drawW) / 2, (H - drawH) / 2, drawW, drawH)
+      }
+      ctx.restore()
+    }
+
+    // 5. 字幕
+    if (subtitleBox && subtitleBox.classList.contains('visible')) {
+      const isVertical = document.body.classList.contains('vertical-mode')
+      const boxW = W * (isVertical ? 0.9 : 0.85)
+      const boxH = isVertical ? H * 0.2 : H * 0.12
+      const boxX = (W - boxW) / 2
+      const boxY = isVertical ? H * 0.45 : H - boxH - 30
+
+      // 字幕背景
+      ctx.save()
+      ctx.globalAlpha = 0.88
+      ctx.fillStyle = '#0a0a1a'
+      ctx.beginPath()
+      const r = 12
+      ctx.moveTo(boxX + r, boxY)
+      ctx.lineTo(boxX + boxW - r, boxY)
+      ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + r)
+      ctx.lineTo(boxX + boxW, boxY + boxH - r)
+      ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH)
+      ctx.lineTo(boxX + r, boxY + boxH)
+      ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH - r)
+      ctx.lineTo(boxX, boxY + r)
+      ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY)
+      ctx.fill()
+      // ボーダー
+      ctx.globalAlpha = 0.3
+      ctx.strokeStyle = '#e94560'
+      ctx.lineWidth = 1
+      ctx.stroke()
+      ctx.restore()
+
+      // 字幕タイトル
+      const titleText = subtitleTitle?.textContent || ''
+      const mainText = subtitleText?.textContent || ''
+      const fontSize = isVertical ? Math.round(W / 30) : Math.round(W / 68)
+      const titleFontSize = Math.round(fontSize * 0.78)
+      let textY = boxY + 30
+
+      if (titleText) {
+        ctx.font = `bold ${titleFontSize}px "Noto Sans JP", sans-serif`
+        ctx.fillStyle = '#e94560'
+        ctx.fillText(titleText, boxX + 32, textY + titleFontSize)
+        textY += titleFontSize + 8
+      }
+
+      // 本文（折り返し）
+      ctx.font = `${fontSize}px "Noto Sans JP", sans-serif`
+      ctx.fillStyle = '#e8e8e8'
+      const maxTextW = boxW - 64
+      const words = mainText.split('')
+      let line = ''
+      for (const char of words) {
+        const testLine = line + char
+        if (ctx.measureText(testLine).width > maxTextW) {
+          ctx.fillText(line, boxX + 32, textY + fontSize)
+          textY += fontSize * 1.5
+          line = char
+        } else {
+          line = testLine
+        }
+      }
+      if (line) ctx.fillText(line, boxX + 32, textY + fontSize)
+    }
+
+    compositeAnimFrame = requestAnimationFrame(renderFrame)
+  }
+
+  renderFrame()
+}
+
 async function startRecording(silent = false) {
   if (isRecording) return
 
   try {
-    // Canvas + AudioContext から直接録画（権限・ダイアログ不要）
-    const canvas = document.getElementById('canvas')
-    const canvasStream = canvas.captureStream(30)
+    // 合成Canvas録画開始
+    startCompositeRender()
+
+    const compStream = compositeCanvas.captureStream(30)
 
     // 音声トラック（TTS+BGM+ジングル）をマージ
     const audioTracks = recordDest.stream.getAudioTracks()
     const combinedStream = new MediaStream([
-      ...canvasStream.getVideoTracks(),
+      ...compStream.getVideoTracks(),
       ...audioTracks
     ])
 
-    capturedStream = canvasStream
+    capturedStream = compStream
 
     recordedChunks = []
     mediaRecorder = new MediaRecorder(combinedStream, {
@@ -166,6 +354,10 @@ async function startRecording(silent = false) {
     }
 
     mediaRecorder.onstop = () => {
+      if (compositeAnimFrame) {
+        cancelAnimationFrame(compositeAnimFrame)
+        compositeAnimFrame = null
+      }
       if (capturedStream) {
         capturedStream.getTracks().forEach(t => t.stop())
         capturedStream = null
@@ -186,7 +378,7 @@ async function startRecording(silent = false) {
     isRecording = true
     recordingStartTime = Date.now()
     updateRecordButton()
-    console.log(`📹 Canvas録画開始（権限不要・${silent ? 'auto' : 'manual'}）`)
+    console.log(`📹 合成Canvas録画開始（権限不要・${silent ? 'auto' : 'manual'}）`)
   } catch (e) {
     console.error('Recording failed:', e)
   }
