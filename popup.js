@@ -199,45 +199,8 @@ document.getElementById('changeBG').addEventListener('click', () => {
 // 詳細設定
 // ============================================
 
-// 朗読順の永続化
-document.querySelectorAll('input[name="readOrder"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    chrome.storage.local.set({ readOrder: radio.value })
-  })
-})
-chrome.storage.local.get(['readOrder'], (result) => {
-  const order = result.readOrder || 'random'
-  const el = document.getElementById(order === 'sequential' ? 'readOrderSeq' : 'readOrderRandom')
-  if (el) el.checked = true
-})
 
-// ファイルリスト取得・表示
-async function refreshFileList() {
-  const result = await sendToViewer('get-file-list')
-  if (!result) return
-  const el = document.getElementById('fileListContent')
-  if (!el) return
 
-  let html = ''
-  if (result.readings && result.readings.length > 0) {
-    html += '<div style="color:#e94560;margin-bottom:2px">📖 readings/</div>'
-    for (const f of result.readings) {
-      html += `<div style="padding-left:12px">• ${f}</div>`
-    }
-  }
-  if (result.media && result.media.length > 0) {
-    html += '<div style="color:#4ca6ff;margin-top:4px;margin-bottom:2px">🎵 media/</div>'
-    for (const f of result.media) {
-      html += `<div style="padding-left:12px">• ${f}</div>`
-    }
-  }
-  if (!html) {
-    html = '<div style="color:#666">まだ読み込まれていません</div>'
-  }
-  el.innerHTML = html
-}
-
-refreshFileList()
 
 // テスト
 document.getElementById('testSpeak').addEventListener('click', () => {
@@ -463,10 +426,7 @@ chrome.storage.local.get(['characterPrompt'], (data) => {
 // ============================================
 // 自動化
 // ============================================
-document.getElementById('generateMorningBtn')?.addEventListener('click', async () => {
-  const autoRecord = document.getElementById('autoRecordMorning')?.checked || false
-  await sendToViewer('generate-morning-show', { autoRecord })
-})
+
 
 // 毎朝アラーム設定
 document.getElementById('dailyAlarmEnabled')?.addEventListener('change', async (e) => {

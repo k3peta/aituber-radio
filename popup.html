@@ -305,16 +305,7 @@
     <details>
       <summary>🔧 詳細設定</summary>
       <div class="details-body">
-        <!-- 朗読順 -->
-        <div class="form-label" style="margin-bottom:4px">📖 朗読順</div>
-        <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:#aaa;margin-bottom:6px">
-          <label style="cursor:pointer;display:flex;align-items:center;gap:3px">
-            <input type="radio" name="readOrder" value="sequential" id="readOrderSeq"> ファイル名順
-          </label>
-          <label style="cursor:pointer;display:flex;align-items:center;gap:3px">
-            <input type="radio" name="readOrder" value="random" id="readOrderRandom" checked> ランダム
-          </label>
-        </div>
+
 
         <div style="height:1px;background:#2a2a3a;margin:8px 0"></div>
 
@@ -344,13 +335,7 @@
 
         <div style="height:1px;background:#2a2a3a;margin:8px 0"></div>
 
-        <!-- ファイルリスト -->
-        <details id="fileListDetails">
-          <summary>📋 読み込み済みファイル</summary>
-          <div id="fileListContent" style="margin-top:4px;font-size:10px;color:#aaa;max-height:150px;overflow-y:auto">
-            <div style="color:#666">まだ読み込まれていません</div>
-          </div>
-        </details>
+
       </div>
     </details>
   </div>
@@ -360,10 +345,6 @@
     <details>
       <summary style="cursor:pointer;font-size:12px;color:#e94560;font-weight:700;padding:6px 0">🤖 自動化</summary>
       <div style="padding:8px 0;font-size:11px">
-        <button id="generateMorningBtn"
-                style="width:100%;padding:8px;background:linear-gradient(135deg,#e94560,#c73e54);border:none;border-radius:8px;color:white;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px">
-          🌅 おはようラジオ生成 & 再生
-        </button>
         <label style="display:flex;align-items:center;gap:6px;color:#aaa;cursor:pointer;margin-bottom:6px">
           <input type="checkbox" id="autoRecordMorning"> 再生時に自動録画（全再生に適用）
         </label>
