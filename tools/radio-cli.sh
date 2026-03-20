@@ -118,7 +118,7 @@ if [ "$MODE" = "local" ]; then
   fi
 
   SETLIST_URL="http://127.0.0.1:${LOCAL_PORT}/${LOCAL_NAME}"
-  VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?setlist=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${SETLIST_URL}', safe=''))")&record=true"
+  VIEWER_URL="chrome-extension://${EXT_ID}/viewer/index.html?setlist=${SETLIST_URL}&record=true"
 
 else
   # カードモード
