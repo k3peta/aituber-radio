@@ -1091,14 +1091,7 @@ function parseScript(mdText) {
     }
 
     if (!trimmed) continue
-    if (trimmed.startsWith('#')) {
-      // セクション見出し: ダイアログにセクション境界として含める
-      const sectionText = trimmed.replace(/^#+\s*/, '')
-      if (sectionText) {
-        dialogues.push({ emotion: 'neutral', intensity: 0.75, text: sectionText, _sectionStart: true })
-      }
-      continue
-    }
+    if (trimmed.startsWith('#')) continue
     if (trimmed.startsWith('//')) continue
     if (trimmed.startsWith('<!--')) continue
     // URL行 → 「URL」と読み上げ
