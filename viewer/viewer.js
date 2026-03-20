@@ -1485,10 +1485,10 @@ async function playScriptWithJingles(script) {
           const prefetchPromise = synthesize(nextText, speaker)
             .then(b => { prefetchedBuffer = b })
             .catch(() => {})
-          await playAudioBuffer(buffer)
+          await playAudio(buffer)
           await prefetchPromise
         } else {
-          await playAudioBuffer(buffer)
+          await playAudio(buffer)
         }
       }
     }
