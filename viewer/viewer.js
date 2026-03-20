@@ -1501,12 +1501,14 @@ async function playScriptWithJingles(script) {
 
   hideSubtitle()
   setEmotion('neutral')
+  await stopBGM()
   status.textContent = `✅ 「${title}」再生完了`
   isPlaying = false
 
   function cleanup() {
     hideSubtitle()
     setEmotion('neutral')
+    stopBGM()
     document.body.classList.remove('vertical-mode')
     status.textContent = '⏹️ 再生停止'
     isPlaying = false
