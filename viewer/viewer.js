@@ -3549,29 +3549,43 @@ async function fetchNewsForShow() {
 }
 
 async function fetchWeatherForShow() {
+  const regions = [
+    { code: '016010', name: '札幌', area: '北海道' },
+    { code: '040010', name: '仙台', area: '東北' },
+    { code: '130010', name: '東京', area: '関東' },
+    { code: '150010', name: '新潟', area: '北陸' },
+    { code: '230010', name: '名古屋', area: '中部' },
+    { code: '270000', name: '大阪', area: '近畿' },
+    { code: '340010', name: '広島', area: '中国' },
+    { code: '380010', name: '松山', area: '四国' },
+    { code: '400010', name: '福岡', area: '九州' },
+    { code: '471010', name: '那覇', area: '沖縄' },
+  ]
   try {
-    // 気象庁 API（tsukumijima ラッパー）— 東京: 130010
-    const res = await fetch('https://weather.tsukumijima.net/api/forecast/city/130010')
-    const data = await res.json()
-    const today = data.forecasts?.[0]
-    if (!today) return null
-    const w = {
-      telop: today.telop || '',
-      detail: today.detail?.weather || '',
-      maxTemp: today.temperature?.max?.celsius || '?',
-      minTemp: today.temperature?.min?.celsius || '?',
-      wind: today.detail?.wind || '',
-      chanceOfRain: today.chanceOfRain || {}
-    }
-    // 降水確率をまとめる
-    const rain = w.chanceOfRain
-    const rainStr = rain['T12_18'] || rain['T06_12'] || rain['T18_24'] || '?'
-    w.rainChance = rainStr
-    console.log(`🌤️ 天気: ${w.telop} 最高${w.maxTemp}°C`)
-    return w
+    const results = await Promise.all(regions.map(async (r) => {
+      try {
+        const res = await fetch(`https://weather.tsukumijima.net/api/forecast/city/${r.code}`)
+        const data = await res.json()
+        const today = data.forecasts?.[0]
+        if (!today) return null
+        const rain = today.chanceOfRain || {}
+        const rainStr = rain['T12_18'] || rain['T06_12'] || rain['T18_24'] || ''
+        return {
+          area: r.area,
+          city: r.name,
+          telop: today.telop || '',
+          maxTemp: today.temperature?.max?.celsius || '?',
+          minTemp: today.temperature?.min?.celsius || '?',
+          rainChance: rainStr
+        }
+      } catch { return null }
+    }))
+    const valid = results.filter(Boolean)
+    console.log(`🌤️ 全国天気: ${valid.length}地域`)
+    return valid
   } catch {
     console.log('🌤️ 天気取得失敗')
-    return null
+    return []
   }
 }
 
@@ -3623,8 +3637,8 @@ async function generateMorningShow(autoRecord = false) {
   const newsText = news.length > 0
     ? `【ニュース（NHK）】\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
     : '【ニュースなし】'
-  const weatherText = weather
-    ? `【天気予報（東京・気象庁）】${weather.telop} 最高${weather.maxTemp}°C/最低${weather.minTemp}°C 降水確率${weather.rainChance} 詳細: ${weather.detail}`
+  const weatherText = weather.length > 0
+    ? `【全国天気予報（気象庁）】\n${weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')}`
     : '【天気情報なし】'
   const historyText = history.length > 0
     ? `【今日は何の日】\n${history.join('\n')}`
@@ -3649,7 +3663,7 @@ ${historyText}
 1. 挨拶「${greeting}！怪談ちゃんの${showName}！」+ 日付紹介
 2. 今日は何の日（あれば2つほど紹介、なければ雑学）
 3. ニュース（2〜3本、自分の感想も交えて）
-4. 天気予報（服装・傘のアドバイス）
+4. 全国天気予報（北から順にテンポよく、傘・服装アドバイス付き）
 5. 今日の一言（ポジティブ）
 6. 締め「${closing}」
 
