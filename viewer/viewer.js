@@ -1361,11 +1361,13 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
     // キャラクター切替: line.character があればアクティブキャラを切り替え
     if (line.character) {
       const charIdx = findCharacterByName(line.character)
+      console.log(`🎭 [${i}] char:"${line.character}" → idx:${charIdx}, speakerId:${charIdx >= 0 ? characters[charIdx].speakerId : 'N/A'}, names:[${characters.map(c=>c.name).join(',')}]`)
       if (charIdx >= 0) {
         setActiveCharacter(charIdx)
         speaker = characters[charIdx].speakerId || speaker
       }
     }
+    console.log(`🔊 [${i}] speaker=${speaker} text="${ttsText.slice(0,20)}..."`)
 
     if (onLine) onLine(line, i)
 
@@ -2421,6 +2423,28 @@ function parseFreeTalkOutput(text) {
 }
 
 /**
+ * character未設定のダイアログに交互にキャラを割り当て（2キャラ対応）
+ */
+function assignCharactersToDialogues(dialogues) {
+  const activeChars = characters.filter(c => c.vrm && c.name)
+  if (activeChars.length < 2) return dialogues
+
+  // すでに全行にcharacterが設定されていればそのまま
+  if (dialogues.every(d => d.character)) return dialogues
+
+  // 交互割り当て
+  let charIndex = 0
+  for (const d of dialogues) {
+    if (!d.character) {
+      d.character = activeChars[charIndex].name
+      charIndex = (charIndex + 1) % activeChars.length
+    }
+  }
+  console.log('🎭 Auto-assigned characters:', dialogues.map(d => `${d.character}:"${d.text.slice(0,15)}"`))
+  return dialogues
+}
+
+/**
  * フリートーク実行
  */
 // プリフェッチキュー
@@ -2445,6 +2469,7 @@ async function prefetchFreeTalk() {
       if (dialogues.some(d => d._untagged)) {
         dialogues = fallbackSplit(dialogues)
       }
+      dialogues = assignCharactersToDialogues(dialogues)
 
       freeTalkQueue.push({ topic, dialogues })
       console.log(`Prefetch queue: ${freeTalkQueue.length}/${PREFETCH_QUEUE_SIZE}`)
@@ -2496,6 +2521,7 @@ async function playFreeTalk() {
     if (dialogues.some(d => d._untagged)) {
       dialogues = fallbackSplit(dialogues)
     }
+    dialogues = assignCharactersToDialogues(dialogues)
   }
 
   status.textContent = `🗣️ フリートーク「${topic.theme}」`
