@@ -2470,6 +2470,16 @@ async function playFreeTalk() {
 
   status.textContent = `🗣️ フリートーク「${topic.theme}」`
 
+  // 自動録画チェック
+  let autoRecording = false
+  {
+    const arData = await chrome.storage.local.get(['autoRecordMorning'])
+    if (arData.autoRecordMorning && !isRecording) {
+      await startRecording(true)
+      autoRecording = true
+    }
+  }
+
   const defaultSpeaker = characters[0]?.speakerId || 38
   await speakPipeline(dialogues, defaultSpeaker, (line, i) => {
     setEmotion(line.emotion, line.intensity)
@@ -2479,6 +2489,7 @@ async function playFreeTalk() {
 
   hideSubtitle()
   setEmotion('neutral')
+  if (autoRecording) stopRecording()
   status.textContent = `✅ フリートーク「${topic.theme}」完了`
   isPlaying = false
 }
