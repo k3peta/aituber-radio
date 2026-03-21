@@ -220,25 +220,25 @@ document.getElementById('saveCharSlots').addEventListener('click', async () => {
     { name: document.getElementById('charName1').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker1').value) || 3 }
   ]
   const spacing = parseFloat(document.getElementById('charSpacing').value) || 0.5
-  const offset = parseFloat(document.getElementById('charOffset').value) || 0
-  await chrome.storage.local.set({ characterSlots: chars, charSpacing: spacing, charOffset: offset })
-  await sendToViewer('update-characters', { characters: chars, spacing, offset })
+  const angle = parseInt(document.getElementById('charAngle').value) || 20
+  await chrome.storage.local.set({ characterSlots: chars, charSpacing: spacing, charAngle: angle })
+  await sendToViewer('update-characters', { characters: chars, spacing, angle })
   document.getElementById('charSlotFeedback').textContent = '✅ 保存しました'
   setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
 })
 
-// 間隔・位置スライダー: リアルタイム反映
+// 間隔・角度スライダー: リアルタイム反映
 document.getElementById('charSpacing').addEventListener('input', (e) => {
   document.getElementById('charSpacingVal').textContent = e.target.value
   sendToViewer('update-characters', { spacing: parseFloat(e.target.value) })
 })
-document.getElementById('charOffset').addEventListener('input', (e) => {
-  document.getElementById('charOffsetVal').textContent = e.target.value
-  sendToViewer('update-characters', { offset: parseFloat(e.target.value) })
+document.getElementById('charAngle').addEventListener('input', (e) => {
+  document.getElementById('charAngleVal').textContent = e.target.value + '°'
+  sendToViewer('update-characters', { angle: parseInt(e.target.value) })
 })
 
 // 復元
-chrome.storage.local.get(['characterSlots', 'charSpacing', 'charOffset'], (data) => {
+chrome.storage.local.get(['characterSlots', 'charSpacing', 'charAngle'], (data) => {
   if (data.characterSlots) {
     const slots = data.characterSlots
     if (slots[0]) {
@@ -254,9 +254,9 @@ chrome.storage.local.get(['characterSlots', 'charSpacing', 'charOffset'], (data)
     document.getElementById('charSpacing').value = data.charSpacing
     document.getElementById('charSpacingVal').textContent = data.charSpacing
   }
-  if (data.charOffset !== undefined) {
-    document.getElementById('charOffset').value = data.charOffset
-    document.getElementById('charOffsetVal').textContent = data.charOffset
+  if (data.charAngle !== undefined) {
+    document.getElementById('charAngle').value = data.charAngle
+    document.getElementById('charAngleVal').textContent = data.charAngle + '°'
   }
 })
 

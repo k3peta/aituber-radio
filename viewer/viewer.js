@@ -723,7 +723,7 @@ async function loadCharacterVRM(url, slotIndex = 0) {
 
 // キャラクターの位置を再配置
 let charSpacing = 0.5   // キャラ間の距離
-let charGroupOffset = 0  // グループ全体の左右位置
+let charInwardAngle = 20  // 向き合い角度（度数）
 
 function repositionCharacters() {
   const loaded = characters.filter(c => c.vrm)
@@ -745,15 +745,15 @@ function repositionCharacters() {
     }
   } else if (count === 2) {
     // 2体: 左右に配置、少し内向き
-    const inwardAngle = 0.35  // 約20度 お互い向き合う
+    const inwardRad = charInwardAngle * Math.PI / 180
 
     if (characters[0].vrm) {
-      characters[0].vrm.scene.position.set(-charSpacing + charGroupOffset, 0, 0)
-      characters[0].vrm.scene.rotation.set(0, inwardAngle, 0)
+      characters[0].vrm.scene.position.set(-charSpacing, 0, 0)
+      characters[0].vrm.scene.rotation.set(0, inwardRad, 0)
     }
     if (characters[1].vrm) {
-      characters[1].vrm.scene.position.set(charSpacing + charGroupOffset, 0, 0)
-      characters[1].vrm.scene.rotation.set(0, -inwardAngle, 0)
+      characters[1].vrm.scene.position.set(charSpacing, 0, 0)
+      characters[1].vrm.scene.rotation.set(0, -inwardRad, 0)
     }
 
     // カメラを中心に合わせる
@@ -761,8 +761,8 @@ function repositionCharacters() {
     if (head0) {
       const headPos = new THREE.Vector3()
       head0.getWorldPosition(headPos)
-      controls.target.set(charGroupOffset, headPos.y - 0.05, 0)
-      camera.position.set(charGroupOffset, headPos.y, 2.8)
+      controls.target.set(0, headPos.y - 0.05, 0)
+      camera.position.set(0, headPos.y, 2.8)
       controls.update()
     }
   }
@@ -3718,7 +3718,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         console.log('🎭 Characters updated:', characters.map(c => `${c.name}(${c.speakerId})`))
       }
       if (msg.spacing !== undefined) charSpacing = msg.spacing
-      if (msg.offset !== undefined) charGroupOffset = msg.offset
+      if (msg.angle !== undefined) charInwardAngle = msg.angle
       repositionCharacters()
       break
     case 'load-character-vrm':
