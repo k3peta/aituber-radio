@@ -221,6 +221,49 @@
       <button class="btn" id="changeBG">🖼️ 背景画像</button>
     </div>
 
+    <!-- キャラクタースロット -->
+    <details id="charSlotsDetails" style="margin-top:4px">
+      <summary>🎭 キャラクタースロット（2人対応）</summary>
+      <div class="details-body">
+        <!-- スロット1 -->
+        <div style="margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:#e94560">1</span>
+            <input type="text" id="charName0" placeholder="キャラ名（例: 怪談ちゃん）" value="怪談ちゃん"
+                   style="flex:1;font-size:11px;padding:4px 8px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee">
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button class="btn" id="loadCharVRM0" style="flex:1;font-size:11px;padding:6px">📂 VRM</button>
+            <div style="display:flex;align-items:center;gap:4px;flex:1">
+              <span style="font-size:10px;color:#888">声:</span>
+              <input type="number" id="charSpeaker0" value="38" min="0" max="100"
+                     style="width:50px;font-size:11px;padding:4px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee;text-align:center">
+            </div>
+            <span id="charStatus0" style="font-size:9px;color:#4caf50"></span>
+          </div>
+        </div>
+        <!-- スロット2 -->
+        <div style="border-top:1px solid #2a2a3a;padding-top:8px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:#7eb8ff">2</span>
+            <input type="text" id="charName1" placeholder="キャラ名（例: 後輩ちゃん）"
+                   style="flex:1;font-size:11px;padding:4px 8px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee">
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button class="btn" id="loadCharVRM1" style="flex:1;font-size:11px;padding:6px">📂 VRM</button>
+            <div style="display:flex;align-items:center;gap:4px;flex:1">
+              <span style="font-size:10px;color:#888">声:</span>
+              <input type="number" id="charSpeaker1" value="3" min="0" max="100"
+                     style="width:50px;font-size:11px;padding:4px;background:#1a1a30;border:1px solid #2a2a4a;border-radius:6px;color:#eee;text-align:center">
+            </div>
+            <span id="charStatus1" style="font-size:9px;color:#4caf50"></span>
+          </div>
+        </div>
+        <button class="btn-accent" id="saveCharSlots" style="margin-top:8px;width:100%">💾 保存</button>
+        <div class="save-feedback" id="charSlotFeedback"></div>
+      </div>
+    </details>
+
     <!-- AI設定 -->
     <details id="aiSettingsDetails">
       <summary>⚙️ AI 接続設定</summary>

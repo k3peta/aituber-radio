@@ -196,6 +196,51 @@ document.getElementById('changeBG').addEventListener('click', () => {
 })
 
 // ============================================
+// キャラクタースロット
+// ============================================
+// VRM読み込み
+document.getElementById('loadCharVRM0').addEventListener('click', () => {
+  const name = document.getElementById('charName0').value.trim()
+  const speakerId = parseInt(document.getElementById('charSpeaker0').value) || 38
+  sendToViewer('load-character-vrm', { slot: 0, name, speakerId })
+  document.getElementById('charStatus0').textContent = '📂 選択中...'
+})
+
+document.getElementById('loadCharVRM1').addEventListener('click', () => {
+  const name = document.getElementById('charName1').value.trim()
+  const speakerId = parseInt(document.getElementById('charSpeaker1').value) || 3
+  sendToViewer('load-character-vrm', { slot: 1, name, speakerId })
+  document.getElementById('charStatus1').textContent = '📂 選択中...'
+})
+
+// 保存
+document.getElementById('saveCharSlots').addEventListener('click', async () => {
+  const chars = [
+    { name: document.getElementById('charName0').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker0').value) || 38 },
+    { name: document.getElementById('charName1').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker1').value) || 3 }
+  ]
+  await chrome.storage.local.set({ characterSlots: chars })
+  await sendToViewer('update-characters', { characters: chars })
+  document.getElementById('charSlotFeedback').textContent = '✅ 保存しました'
+  setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
+})
+
+// 復元
+chrome.storage.local.get(['characterSlots'], (data) => {
+  if (data.characterSlots) {
+    const slots = data.characterSlots
+    if (slots[0]) {
+      document.getElementById('charName0').value = slots[0].name || ''
+      document.getElementById('charSpeaker0').value = slots[0].speakerId || 38
+    }
+    if (slots[1]) {
+      document.getElementById('charName1').value = slots[1].name || ''
+      document.getElementById('charSpeaker1').value = slots[1].speakerId || 3
+    }
+  }
+})
+
+// ============================================
 // 詳細設定
 // ============================================
 

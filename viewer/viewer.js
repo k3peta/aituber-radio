@@ -108,9 +108,19 @@ async function loadCameraPosition() {
 }
 
 // ============================================
-// VRM Loading
+// VRM Loading & Multi-Character Management
 // ============================================
-let currentVRM = null
+// キャラクタースロット（最大2体）
+const characters = [
+  { name: '', vrm: null, mixer: null, speakerId: 38, position: 'center' },
+  { name: '', vrm: null, mixer: null, speakerId: 3, position: 'right' }
+]
+let activeCharIndex = 0  // 現在話しているキャラのインデックス
+
+// 後方互換: currentVRM は characters[0].vrm を参照
+let _legacyVRM = null
+Object.defineProperty(window, '_currentVRMOverride', { value: false, writable: true })
+let currentVRM = null  // 互換用。loadVRM() と characters 両方から更新される
 let mixer = null
 const timer = new THREE.Timer()
 
@@ -660,6 +670,115 @@ async function loadVRM(url) {
   }
 }
 
+// キャラスロットにVRMを読み込む（複数キャラ対応）
+async function loadCharacterVRM(url, slotIndex = 0) {
+  if (slotIndex < 0 || slotIndex >= characters.length) return
+
+  const slot = characters[slotIndex]
+
+  // 既存VRMを破棄
+  if (slot.vrm) {
+    VRMUtils.deepDispose(slot.vrm.scene)
+    scene.remove(slot.vrm.scene)
+    slot.vrm = null
+    slot.mixer = null
+  }
+
+  const loader = new GLTFLoader()
+  loader.register((parser) => new VRMLoaderPlugin(parser))
+
+  try {
+    const gltf = await loader.loadAsync(url)
+    const vrm = gltf.userData.vrm
+    VRMUtils.rotateVRM0(vrm)
+    scene.add(vrm.scene)
+    slot.vrm = vrm
+    slot.mixer = new THREE.AnimationMixer(vrm.scene)
+    applyIdlePose(vrm)
+
+    // スロット0 は後方互換で currentVRM を更新
+    if (slotIndex === 0) {
+      currentVRM = vrm
+      mixer = slot.mixer
+    }
+
+    // 2体いる場合は位置を調整
+    repositionCharacters()
+
+    console.log(`🎭 Character ${slotIndex} loaded:`, slot.name || `slot${slotIndex}`)
+    return vrm
+  } catch (e) {
+    console.error(`❌ Character ${slotIndex} load failed:`, e)
+    return null
+  }
+}
+
+// キャラクターの位置を再配置
+function repositionCharacters() {
+  const loaded = characters.filter(c => c.vrm)
+  const count = loaded.length
+
+  if (count === 1) {
+    // 1体: 中央配置（デフォルト）
+    loaded[0].vrm.scene.position.set(0, 0, 0)
+    loaded[0].vrm.scene.rotation.set(0, 0, 0)
+
+    // カメラを顔に合わせる
+    const head = loaded[0].vrm.humanoid?.getNormalizedBoneNode('head')
+    if (head) {
+      const headPos = new THREE.Vector3()
+      head.getWorldPosition(headPos)
+      controls.target.set(0, headPos.y - 0.05, 0)
+      camera.position.set(0, headPos.y, 2.0)
+      controls.update()
+    }
+  } else if (count === 2) {
+    // 2体: 左右に配置、少し内向き
+    const offset = 0.5  // 左右の距離
+    const inwardAngle = 0.15  // 内向きの角度（ラジアン）
+
+    // スロット0 を左、スロット1 を右
+    const leftChar = characters[0].vrm ? characters[0] : characters[1]
+    const rightChar = characters[1].vrm ? characters[1] : characters[0]
+
+    if (leftChar.vrm) {
+      leftChar.vrm.scene.position.set(-offset, 0, 0)
+      leftChar.vrm.scene.rotation.set(0, inwardAngle, 0)
+      leftChar.position = 'left'
+    }
+    if (rightChar.vrm) {
+      rightChar.vrm.scene.position.set(offset, 0, 0)
+      rightChar.vrm.scene.rotation.set(0, -inwardAngle, 0)
+      rightChar.position = 'right'
+    }
+
+    // カメラを2体の中間に合わせる
+    const head0 = characters[0].vrm?.humanoid?.getNormalizedBoneNode('head')
+    if (head0) {
+      const headPos = new THREE.Vector3()
+      head0.getWorldPosition(headPos)
+      controls.target.set(0, headPos.y - 0.05, 0)
+      camera.position.set(0, headPos.y, 2.8)  // 少し引く
+      controls.update()
+    }
+  }
+}
+
+// アクティブキャラを切り替え（lip sync対象）
+function setActiveCharacter(index) {
+  if (index >= 0 && index < characters.length && characters[index].vrm) {
+    activeCharIndex = index
+    currentVRM = characters[index].vrm
+    mixer = characters[index].mixer
+    console.log(`🎭 Active character: ${characters[index].name || index}`)
+  }
+}
+
+// キャラ名からスロットを検索
+function findCharacterByName(name) {
+  return characters.findIndex(c => c.name === name)
+}
+
 // ============================================
 // Pose
 // ============================================
@@ -1180,8 +1299,17 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
     if (stopRequested) return true
 
     const line = lines[i]
-    const speaker = line.speaker || defaultSpeaker
+    let speaker = line.speaker || defaultSpeaker
     const ttsText = ttsTexts[i] || line.text
+
+    // キャラクター切替: line.character があればアクティブキャラを切り替え
+    if (line.character) {
+      const charIdx = findCharacterByName(line.character)
+      if (charIdx >= 0) {
+        setActiveCharacter(charIdx)
+        speaker = characters[charIdx].speakerId || speaker
+      }
+    }
 
     if (onLine) onLine(line, i)
 
@@ -1314,6 +1442,7 @@ function parseScript(mdText) {
   let multilineKey = ''
   let currentEmotion = 'neutral'
   let currentIntensity = 1.0
+  let currentCharacter = null  // [char: xxx] で指定されたキャラ名
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -1390,6 +1519,7 @@ function parseScript(mdText) {
       const val = tagLine[2]
       if (key === 'emotion') currentEmotion = val
       else if (key === 'intensity') currentIntensity = parseFloat(val)
+      else if (key === 'char') currentCharacter = val.trim()
       // type, bgm, speaker 等はスキップ
       continue
     }
@@ -1401,6 +1531,7 @@ function parseScript(mdText) {
         emotion: currentEmotion || 'neutral',
         intensity: currentIntensity || 1.0,
         text: cleanText,
+        character: currentCharacter,
         _untagged: true
       })
     }
@@ -3486,12 +3617,34 @@ function animate() {
   if (pngtuberMode) {
     updateLipSync()
   } else if (currentVRM) {
-    updateLipSync()
+    updateLipSync()  // アクティブキャラのみlip sync
+  }
+
+  // 全キャラクターの更新（まばたき・idle・VRM update）
+  for (const ch of characters) {
+    if (!ch.vrm) continue
+    if (ch.vrm === currentVRM) {
+      // アクティブキャラ: まばたき + idle揺れ
+      updateBlink(delta)
+      updateIdleSway(delta)
+    } else {
+      // 非アクティブキャラ: まばたきのみ
+      const savedVRM = currentVRM
+      currentVRM = ch.vrm
+      updateBlink(delta)
+      currentVRM = savedVRM
+    }
+    ch.vrm.update(delta)
+    if (ch.mixer) ch.mixer.update(delta)
+  }
+
+  // characters未使用時の後方互換（1体のみの旧動作）
+  if (!characters[0].vrm && currentVRM) {
     updateBlink(delta)
     updateIdleSway(delta)
     currentVRM.update(delta)
+    if (mixer) mixer.update(delta)
   }
-  if (mixer) mixer.update(delta)
 
   renderer.render(scene, camera)
 }
@@ -3533,6 +3686,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (isPlaying) stopRequested = true
       stopBGM()
       break
+    case 'update-characters':
+      // ポップアップからキャラ設定を受信
+      if (msg.characters) {
+        msg.characters.forEach((ch, i) => {
+          if (i < characters.length) {
+            characters[i].name = ch.name || ''
+            characters[i].speakerId = ch.speakerId || (i === 0 ? 38 : 3)
+          }
+        })
+        console.log('🎭 Characters updated:', characters.map(c => `${c.name}(${c.speakerId})`))
+      }
+      break
+    case 'load-character-vrm':
+      // 指定スロットにVRMを読み込む
+      (async () => {
+        const slot = msg.slot || 0
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.vrm'
+        input.onchange = async (e) => {
+          const file = e.target.files[0]
+          if (file) {
+            characters[slot].name = msg.name || ''
+            characters[slot].speakerId = msg.speakerId || (slot === 0 ? 38 : 3)
+            await loadCharacterVRM(URL.createObjectURL(file), slot)
+            status.textContent = `✅ キャラ${slot + 1}「${characters[slot].name}」読み込み完了`
+          }
+        }
+        input.click()
+      })()
+      break
+    case 'get-characters':
+      sendResponse({
+        characters: characters.map(c => ({
+          name: c.name,
+          speakerId: c.speakerId,
+          hasVRM: !!c.vrm,
+          position: c.position
+        }))
+      })
+      return true  // async response
     case 'play-default-setlist':
       loadAndPlayDefaultSetlist()
       break
