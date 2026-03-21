@@ -3717,10 +3717,19 @@ async function playSetlist(setlist) {
     }
   }
 
+  hideSubtitle()
+  setEmotion('neutral')
+
+  // 最後にクレジット表示
+  showCredits(8000)
+
   // 録画中なら1周で自動停止（ループ再生は録画停止後に続行）
   if (isRecording) {
-    await sleep(2000) // エンディングの余韻
+    await sleep(8500) // クレジットの余韻
     stopRecording()
+  } else {
+    // 録画していなくてもクレジットを最後まで見せる
+    await sleep(8500)
   }
 
   // ループ対応 — loop: true [waitMs]
@@ -3735,8 +3744,6 @@ async function playSetlist(setlist) {
     }
   }
 
-  hideSubtitle()
-  setEmotion('neutral')
   status.textContent = `✅ 「${title}」放送終了`
   isPlaying = false
   stopRequested = false
