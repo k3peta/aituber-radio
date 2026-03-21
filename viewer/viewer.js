@@ -2798,10 +2798,22 @@ async function processComments(speaker) {
   for (const comment of comments) {
     if (stopRequested) return true
 
+    // コメントにキャラ名が含まれていればそのキャラが応答
+    let commentSpeaker = speaker
+    const charIdx = findCharacterByName(comment.text)
+    if (charIdx >= 0 && characters[charIdx].vrm) {
+      setActiveCharacter(charIdx)
+      commentSpeaker = characters[charIdx].speakerId || speaker
+      console.log(`💬 Comment routed to char ${charIdx}: ${characters[charIdx].name}`)
+    } else {
+      // デフォルトキャラ（キャラ1）
+      setActiveCharacter(0)
+    }
+
     const readText = comment.author + 'さんから。' + comment.text
     setEmotion('neutral', 0.7)
     showSubtitle(readText, '💬 ' + comment.author)
-    await speak(readText, speaker)
+    await speak(readText, commentSpeaker)
     await sleep(300)
 
     const reply = await generateCommentReply(comment)
@@ -2817,7 +2829,7 @@ async function processComments(speaker) {
       const cleanReply = cleanTextForSpeech(reply)
       if (cleanReply) {
         showSubtitle(cleanReply, '💬 返事')
-        await speak(cleanReply, speaker)
+        await speak(cleanReply, commentSpeaker)
       }
       await sleep(500)
     }
@@ -4616,6 +4628,16 @@ function toggleLocalCommentBox() {
     } else {
       const replyDiv = addToLog('', '考え中...', true)
       try {
+        // コメントにキャラ名が含まれていればそのキャラが応答
+        let localSpeaker = undefined  // speak()のデフォルト
+        const charIdx = findCharacterByName(text)
+        if (charIdx >= 0 && characters[charIdx].vrm) {
+          setActiveCharacter(charIdx)
+          localSpeaker = characters[charIdx].speakerId
+        } else {
+          setActiveCharacter(0)
+        }
+
         const reply = await generateCommentReply(comment)
         console.log('💬 Local chat raw reply:', JSON.stringify(reply))
         let cleanReply = reply ? cleanTextForSpeech(reply) : ''
@@ -4629,7 +4651,7 @@ function toggleLocalCommentBox() {
         else setEmotion('happy', 0.7)
 
         showSubtitle(cleanReply, '💬 返事')
-        await speak(cleanReply)
+        await speak(cleanReply, localSpeaker)
         await sleep(500)
         hideSubtitle()
         setEmotion('neutral')
