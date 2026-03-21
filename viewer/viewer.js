@@ -981,6 +981,82 @@ function updateLipSync() {
 }
 
 // ============================================
+// Credit Display（クレジット表示）
+// ============================================
+const creditOverlay = document.getElementById('credit-overlay')
+let creditTimer = null
+
+// VOICEVOX speakerId → キャラ名マッピング（主要キャラ）
+const VOICEVOX_SPEAKERS = {
+  0: 'VOICEVOX 四国めたん（ノーマル）', 1: 'VOICEVOX ずんだもん（ノーマル）',
+  2: 'VOICEVOX 四国めたん（あまあま）', 3: 'VOICEVOX ずんだもん（あまあま）',
+  4: 'VOICEVOX 四国めたん（ツンツン）', 5: 'VOICEVOX ずんだもん（ツンツン）',
+  6: 'VOICEVOX 四国めたん（セクシー）', 7: 'VOICEVOX ずんだもん（セクシー）',
+  8: 'VOICEVOX 春日部つむぎ', 9: 'VOICEVOX 雨晴はう',
+  10: 'VOICEVOX 波音リツ', 11: 'VOICEVOX 玄野武宏（ノーマル）',
+  12: 'VOICEVOX 白上虎太郎（ふつう）', 13: 'VOICEVOX 青山龍星',
+  14: 'VOICEVOX 冥鳴ひまり', 20: 'VOICEVOX もち子さん',
+  21: 'VOICEVOX 剣崎雌雄', 23: 'VOICEVOX WhiteCUL',
+  27: 'VOICEVOX 後鬼', 29: 'VOICEVOX No.7（ノーマル）',
+  38: 'VOICEVOX ずんだもん（ヒソヒソ）', 42: 'VOICEVOX ずんだもん（ヘロヘロ）',
+  43: 'VOICEVOX ずんだもん（なみだめ）', 46: 'VOICEVOX 中国うさぎ',
+  47: 'VOICEVOX 栗田まろん', 48: 'VOICEVOX あいえるたん',
+  51: 'VOICEVOX 満別花丸', 52: 'VOICEVOX 琴詠ニア',
+}
+
+function getVoicevoxCreditName(speakerId) {
+  return VOICEVOX_SPEAKERS[speakerId] || `VOICEVOX (Speaker ${speakerId})`
+}
+
+/**
+ * クレジットを自動生成して表示
+ * @param {number} durationMs 表示時間（ミリ秒）。0なら手動で非表示にするまで表示。
+ * @param {string} customCredit カスタムクレジットテキスト（指定すると自動生成を上書き）
+ */
+function showCredits(durationMs = 8000, customCredit = '') {
+  if (!creditOverlay) return
+
+  let creditText = customCredit
+  if (!creditText) {
+    // 自動生成
+    const lines = ['AITuber Radio']
+    const usedSpeakers = new Set()
+    for (const ch of characters) {
+      if (ch.name && ch.speakerId !== undefined) {
+        const voiceName = ttsEngine === 'voicevox'
+          ? getVoicevoxCreditName(ch.speakerId)
+          : ttsEngine === 'sbv2' ? `Style-Bert-VITS2` : 'ブラウザTTS'
+        if (!usedSpeakers.has(ch.speakerId)) {
+          lines.push(voiceName)
+          usedSpeakers.add(ch.speakerId)
+        }
+      }
+    }
+    creditText = lines.join('\n')
+  }
+
+  creditOverlay.textContent = ''
+  creditText.split('\n').forEach((line, i) => {
+    if (i > 0) creditOverlay.appendChild(document.createElement('br'))
+    creditOverlay.appendChild(document.createTextNode(line))
+  })
+  creditOverlay.classList.add('visible')
+
+  if (creditTimer) clearTimeout(creditTimer)
+  if (durationMs > 0) {
+    creditTimer = setTimeout(() => {
+      creditOverlay.classList.remove('visible')
+      creditTimer = null
+    }, durationMs)
+  }
+}
+
+function hideCredits() {
+  if (creditOverlay) creditOverlay.classList.remove('visible')
+  if (creditTimer) { clearTimeout(creditTimer); creditTimer = null }
+}
+
+// ============================================
 // Subtitle
 // ============================================
 function showSubtitle(text, title = '') {
@@ -1964,6 +2040,7 @@ async function playScriptWithJingles(script) {
   hideSubtitle()
   setEmotion('neutral')
   await stopBGM()
+  showCredits(8000)  // 8秒間クレジット表示
   status.textContent = `✅ 「${title}」再生完了`
   isPlaying = false
 
@@ -2556,6 +2633,7 @@ async function playFreeTalk() {
   hideSubtitle()
   setEmotion('neutral')
   if (autoRecording) stopRecording()
+  showCredits(8000)  // 8秒間クレジット表示
   status.textContent = `✅ フリートーク「${topic.theme}」完了`
   isPlaying = false
 }

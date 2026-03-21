@@ -194,6 +194,56 @@ document.getElementById('changeBG').addEventListener('click', () => {
 // ============================================
 // キャラクタースロット
 // ============================================
+// VOICEVOXスピーカーリスト
+const VOICEVOX_SPEAKERS = [
+  { id: 38, name: 'ずんだもん（ヒソヒソ）' },
+  { id: 1,  name: 'ずんだもん（ノーマル）' },
+  { id: 3,  name: 'ずんだもん（あまあま）' },
+  { id: 5,  name: 'ずんだもん（ツンツン）' },
+  { id: 7,  name: 'ずんだもん（セクシー）' },
+  { id: 42, name: 'ずんだもん（ヘロヘロ）' },
+  { id: 43, name: 'ずんだもん（なみだめ）' },
+  { id: 0,  name: '四国めたん（ノーマル）' },
+  { id: 2,  name: '四国めたん（あまあま）' },
+  { id: 4,  name: '四国めたん（ツンツン）' },
+  { id: 6,  name: '四国めたん（セクシー）' },
+  { id: 8,  name: '春日部つむぎ' },
+  { id: 9,  name: '雨晴はう' },
+  { id: 10, name: '波音リツ' },
+  { id: 11, name: '玄野武宏（ノーマル）' },
+  { id: 12, name: '白上虎太郎（ふつう）' },
+  { id: 13, name: '青山龍星' },
+  { id: 14, name: '冥鳴ひまり' },
+  { id: 20, name: 'もち子さん' },
+  { id: 21, name: '剣崎雌雄' },
+  { id: 23, name: 'WhiteCUL' },
+  { id: 27, name: '後鬼' },
+  { id: 29, name: 'No.7（ノーマル）' },
+  { id: 46, name: '中国うさぎ' },
+  { id: 47, name: '栗田まろん' },
+  { id: 48, name: 'あいえるたん' },
+  { id: 51, name: '満別花丸' },
+  { id: 52, name: '琴詠ニア' },
+]
+
+// プルダウン初期化
+function initSpeakerSelect(selectId, labelId, defaultId) {
+  const select = document.getElementById(selectId)
+  const label = document.getElementById(labelId)
+  for (const s of VOICEVOX_SPEAKERS) {
+    const opt = document.createElement('option')
+    opt.value = s.id
+    opt.textContent = s.name
+    select.appendChild(opt)
+  }
+  select.value = defaultId
+  if (label) label.textContent = defaultId
+  select.addEventListener('change', () => {
+    if (label) label.textContent = select.value
+  })
+}
+initSpeakerSelect('charSpeaker0', 'charSpeakerId0', 38)
+initSpeakerSelect('charSpeaker1', 'charSpeakerId1', 3)
 // VRM読み込み
 document.getElementById('loadCharVRM0').addEventListener('click', () => {
   const name = document.getElementById('charName0').value.trim()
@@ -240,11 +290,13 @@ chrome.storage.local.get(['characterSlots', 'charSpacing', 'charAngle'], (data) 
     if (slots[0]) {
       document.getElementById('charName0').value = slots[0].name || ''
       document.getElementById('charSpeaker0').value = slots[0].speakerId || 38
+      document.getElementById('charSpeakerId0').textContent = slots[0].speakerId || 38
       document.getElementById('charPrompt0').value = slots[0].prompt || ''
     }
     if (slots[1]) {
       document.getElementById('charName1').value = slots[1].name || ''
       document.getElementById('charSpeaker1').value = slots[1].speakerId || 3
+      document.getElementById('charSpeakerId1').textContent = slots[1].speakerId || 3
       document.getElementById('charPrompt1').value = slots[1].prompt || ''
     }
   }

@@ -19,6 +19,24 @@
       font-family: 'Noto Sans JP', sans-serif;
     }
 
+    /* クレジット表示 */
+    #credit-overlay {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 900;
+      font-size: 13px;
+      color: rgba(255,255,255,0.85);
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+      line-height: 1.6;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1s ease;
+    }
+    #credit-overlay.visible {
+      opacity: 1;
+    }
+
     /* 背景レイヤー */
     #bg-layer {
       position: fixed;
@@ -357,6 +375,8 @@
   <input type="file" id="folderInput" webkitdirectory style="display:none">
   <input type="file" id="readingsFolderInput" webkitdirectory style="display:none">
   <input type="file" id="mediaFolderInput" webkitdirectory style="display:none">
+
+  <div id="credit-overlay"></div>
 
   <script type="module" src="viewer.bundle.js"></script>
 </body>
