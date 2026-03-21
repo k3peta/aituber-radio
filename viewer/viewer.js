@@ -4431,7 +4431,7 @@ window.generateMorningShow = generateMorningShow
       if (card.media) {
         for (const [localPath, remotePath] of Object.entries(card.media)) {
           try {
-            const mediaUrl = `${STATION_BASE}/cards/${cardId}/${remotePath}`
+            const mediaUrl = `${STATION_BASE}/${remotePath}`
             const mediaRes = await fetch(mediaUrl)
             if (mediaRes.ok) {
               const blob = await mediaRes.blob()
