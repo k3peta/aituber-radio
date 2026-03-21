@@ -1435,6 +1435,16 @@ function setEmotion(emotion, intensity = 1) {
   if (emotion !== 'neutral') {
     currentVRM.expressionManager?.setValue(emotion, intensity)
   }
+
+  // ボディリアクションをトリガー（アクティブキャラ）
+  const activeChar = characters[activeCharIndex]
+  if (activeChar && emotion !== 'neutral') {
+    if (!activeChar._reaction) activeChar._reaction = { type: 'none', timer: 0, intensity: 0 }
+    activeChar._reaction.type = emotion
+    activeChar._reaction.intensity = intensity
+    activeChar._reaction.duration = emotion === 'happy' ? 1.5 : 0.8
+    activeChar._reaction.timer = activeChar._reaction.duration
+  }
 }
 
 function cycleEmotion() {
@@ -3765,7 +3775,7 @@ function animate() {
     updateLipSync()  // アクティブキャラのみlip sync
   }
 
-  // 全キャラクターの更新（まばたき・idle・VRM update）
+  // 全キャラクターの更新（まばたき・idle・VRM update・リアクション）
   for (let ci = 0; ci < characters.length; ci++) {
     const ch = characters[ci]
     if (!ch.vrm) continue
@@ -3777,38 +3787,80 @@ function animate() {
       updateBlink(delta)
       updateIdleSway(delta)
     } else {
-      // 非アクティブキャラ: まばたき + 少しずれたidle揺れ + ランダム頷き
+      // 非アクティブキャラ: まばたき + 少しずれたidle揺れ
       const savedElapsed = elapsedTime
-      elapsedTime += ci * 3.7  // キャラごとにタイミングずらし
+      elapsedTime += ci * 3.7
       updateBlink(delta)
       updateIdleSway(delta)
       elapsedTime = savedElapsed
+    }
 
-      // 頷きリアクション（再生中のみ）
-      if (isPlaying) {
-        const humanoid = ch.vrm.humanoid
-        const head = humanoid?.getNormalizedBoneNode('head')
-        if (head) {
-          if (!ch._nodPhase) ch._nodPhase = 0
-          if (!ch._nodTimer) ch._nodTimer = 2 + Math.random() * 3
+    // ===== 再生中リアクション（全キャラ共通） =====
+    if (isPlaying) {
+      const humanoid = ch.vrm.humanoid
+      if (!humanoid) { currentVRM = savedVRM; ch.vrm.update(delta); continue }
+      const head = humanoid.getNormalizedBoneNode('head')
+      const spine = humanoid.getNormalizedBoneNode('spine')
+      const upperChest = humanoid.getNormalizedBoneNode('upperChest')
 
-          ch._nodTimer -= delta
-          if (ch._nodTimer <= 0 && ch._nodPhase === 0) {
-            ch._nodPhase = 1
-            ch._nodTimer = 0.3
-          }
+      // --- 初期化 ---
+      if (!ch._reaction) ch._reaction = { type: 'none', timer: 0, intensity: 0 }
+      if (!ch._nodPhase) ch._nodPhase = 0
+      if (!ch._nodTimer) ch._nodTimer = 2 + Math.random() * 3
 
-          if (ch._nodPhase === 1) {
-            // idle swayの上に頷きを加算（1フレーム分だけ）
-            const nodAmount = Math.sin((1 - ch._nodTimer / 0.3) * Math.PI) * 0.08
-            head.rotation.x = nodAmount  // += ではなく = で設定
-            ch._nodTimer -= delta
-            if (ch._nodTimer <= 0) {
-              ch._nodPhase = 0
-              ch._nodTimer = 2 + Math.random() * 4
-            }
-          }
+      // --- 頷きリアクション（非アクティブ or アクティブでもたまに） ---
+      const isActive = ch.vrm === savedVRM
+      const nodChance = isActive ? 0.15 : 1.0  // アクティブキャラは15%の確率で頷き
+      ch._nodTimer -= delta
+      if (ch._nodTimer <= 0 && ch._nodPhase === 0) {
+        if (Math.random() < nodChance) {
+          ch._nodPhase = 1
+          ch._nodTimer = 0.25 + Math.random() * 0.15  // 0.25〜0.4秒
+        } else {
+          ch._nodTimer = 1.5 + Math.random() * 2
         }
+      }
+      if (ch._nodPhase === 1 && head) {
+        const progress = 1 - ch._nodTimer / 0.3
+        head.rotation.x = Math.sin(progress * Math.PI) * 0.08
+        ch._nodTimer -= delta
+        if (ch._nodTimer <= 0) {
+          ch._nodPhase = 0
+          ch._nodTimer = isActive ? (3 + Math.random() * 5) : (2 + Math.random() * 4)
+        }
+      }
+
+      // --- 感情リアクション（setEmotionで設定されたemotionに連動） ---
+      const r = ch._reaction
+      if (r.timer > 0) {
+        r.timer -= delta
+        const t = Math.max(0, r.timer)
+        const ease = Math.sin((1 - t / r.duration) * Math.PI)  // 0→1→0
+
+        switch (r.type) {
+          case 'surprised':
+            // 仰け反り + 少し上を向く
+            if (spine) spine.rotation.x = -ease * 0.06 * r.intensity
+            if (head) head.rotation.x = -ease * 0.04 * r.intensity
+            break
+          case 'happy':
+            // 体を左右に軽く揺らす
+            if (spine) spine.rotation.z = Math.sin(t * 12) * 0.03 * ease * r.intensity
+            if (upperChest) upperChest.rotation.z = Math.sin(t * 12 + 0.5) * 0.02 * ease * r.intensity
+            break
+          case 'sad':
+            // 少しうつむく
+            if (head) head.rotation.x = ease * 0.06 * r.intensity
+            if (spine) spine.rotation.x = ease * 0.03 * r.intensity
+            break
+          case 'angry':
+            // 前のめり + 小刻みな震え
+            if (spine) spine.rotation.x = ease * 0.04 * r.intensity
+            if (head) head.rotation.x = ease * 0.03 * r.intensity + Math.sin(t * 30) * 0.005
+            break
+        }
+
+        if (r.timer <= 0) r.type = 'none'
       }
     }
 
