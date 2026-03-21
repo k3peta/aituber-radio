@@ -557,6 +557,26 @@ async function resolveMediaURL(filename) {
     if (res.ok) return extUrl
   } catch {}
 
+  // 3. ローカルサーバー（CLI --local モード）からの読み込み
+  const params = new URLSearchParams(location.search)
+  const setlistUrl = params.get('setlist')
+  if (setlistUrl) {
+    try {
+      const baseUrl = setlistUrl.substring(0, setlistUrl.lastIndexOf('/') + 1)
+      // セットリストと同じディレクトリから
+      const sameDir = baseUrl + filename
+      const res1 = await fetch(sameDir, { method: 'HEAD' })
+      if (res1.ok) return sameDir
+    } catch {}
+    try {
+      // サーバールートから
+      const origin = new URL(setlistUrl).origin
+      const rootUrl = origin + '/' + filename
+      const res2 = await fetch(rootUrl, { method: 'HEAD' })
+      if (res2.ok) return rootUrl
+    } catch {}
+  }
+
   console.warn(`📁 [Not found] ${filename}`)
   return null
 }
