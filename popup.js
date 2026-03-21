@@ -195,6 +195,7 @@ document.getElementById('changeBG').addEventListener('click', () => {
 // キャラクタースロット
 // ============================================
 // VOICEVOXスピーカーリスト
+// ❗ viewer.js にも同様の VOICEVOX_SPEAKERS があります。片方を更新したら両方更新してください。
 const VOICEVOX_SPEAKERS = [
   { id: 38, name: 'ずんだもん（ヒソヒソ）' },
   { id: 1,  name: 'ずんだもん（ノーマル）' },
@@ -298,14 +299,22 @@ document.getElementById('resetCharSlots').addEventListener('click', async () => 
   setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
 })
 
-// 間隔・角度スライダー: リアルタイム反映
+// 間隔・角度スライダー: リアルタイム反映（debounce付き）
+let _sliderDebounce = null
+function debouncedSendCharUpdate(data) {
+  if (_sliderDebounce) clearTimeout(_sliderDebounce)
+  _sliderDebounce = setTimeout(() => {
+    sendToViewer('update-characters', data)
+    _sliderDebounce = null
+  }, 50)
+}
 document.getElementById('charSpacing').addEventListener('input', (e) => {
   document.getElementById('charSpacingVal').textContent = e.target.value
-  sendToViewer('update-characters', { spacing: parseFloat(e.target.value) })
+  debouncedSendCharUpdate({ spacing: parseFloat(e.target.value) })
 })
 document.getElementById('charAngle').addEventListener('input', (e) => {
   document.getElementById('charAngleVal').textContent = e.target.value + '°'
-  sendToViewer('update-characters', { angle: parseInt(e.target.value) })
+  debouncedSendCharUpdate({ angle: parseInt(e.target.value) })
 })
 
 // 復元
@@ -338,9 +347,6 @@ chrome.storage.local.get(['characterSlots', 'charSpacing', 'charAngle'], (data) 
 // ============================================
 // 詳細設定
 // ============================================
-
-
-
 
 // テスト
 document.getElementById('testSpeak').addEventListener('click', () => {
@@ -511,9 +517,11 @@ chrome.storage.local.get(['characterPrompt'], (data) => {
   const aiText = document.getElementById('aiText')
   const aiDot = document.getElementById('aiDot')
 
-  // VOICEVOX チェック
+  // VOICEVOX チェック（保存済みポートを使用）
   try {
-    const res = await fetch('http://localhost:50021/version')
+    const ttsData = await chrome.storage.local.get(['ttsPort'])
+    const port = ttsData.ttsPort || 50021
+    const res = await fetch(`http://localhost:${port}/version`)
     if (res.ok) {
       const version = await res.text()
       statusText.textContent = `VOICEVOX ${version}`

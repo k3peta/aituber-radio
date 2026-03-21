@@ -989,6 +989,7 @@ const creditOverlay = document.getElementById('credit-overlay')
 let creditTimer = null
 
 // VOICEVOX speakerId → キャラ名マッピング（主要キャラ）
+// ❗ popup.js にも同様の VOICEVOX_SPEAKERS があります。片方を更新したら両方更新してください。
 const VOICEVOX_SPEAKERS = {
   0: 'VOICEVOX 四国めたん（ノーマル）', 1: 'VOICEVOX ずんだもん（ノーマル）',
   2: 'VOICEVOX 四国めたん（あまあま）', 3: 'VOICEVOX ずんだもん（あまあま）',
@@ -1024,7 +1025,7 @@ function showCredits(durationMs = 8000, customCredit = '') {
     const lines = ['AITuber Radio']
     const usedSpeakers = new Set()
     for (const ch of characters) {
-      if (ch.name && ch.speakerId !== undefined) {
+      if (ch.vrm && ch.name && ch.speakerId !== undefined) {
         const voiceName = ttsEngine === 'voicevox'
           ? getVoicevoxCreditName(ch.speakerId)
           : ttsEngine === 'sbv2' ? `Style-Bert-VITS2` : 'ブラウザTTS'
@@ -1457,13 +1458,13 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
     // キャラクター切替: line.character があればアクティブキャラを切り替え
     if (line.character) {
       const charIdx = findCharacterByName(line.character)
-      console.log(`🎭 [${i}] char:"${line.character}" → idx:${charIdx}, speakerId:${charIdx >= 0 ? characters[charIdx].speakerId : 'N/A'}, names:[${characters.map(c=>c.name).join(',')}]`)
+      console.log(`🎭 [${i}] char:"${line.character}" → idx:${charIdx}, speaker:${charIdx >= 0 ? characters[charIdx].speakerId : 'N/A'}`)
       if (charIdx >= 0) {
         setActiveCharacter(charIdx)
         speaker = characters[charIdx].speakerId || speaker
       }
     }
-    console.log(`🔊 [${i}] speaker=${speaker} text="${ttsText.slice(0,20)}..."`)
+
 
     if (onLine) onLine(line, i)
 
@@ -3793,48 +3794,44 @@ async function playJingle(opts) {
 // ============================================
 let elapsedTime = 0
 
-// 瞬き制御
-let blinkTimer = 0
-let nextBlinkAt = randomBlinkInterval()
-let blinkPhase = 0  // 0=待機, 1=閉じ中, 2=開き中
-let blinkValue = 0
-const BLINK_CLOSE_SPEED = 12  // 閉じる速さ
-const BLINK_OPEN_SPEED = 6    // 開く速さ
-
-function randomBlinkInterval() {
-  return 2 + Math.random() * 4  // 2〜6秒
+// 瞬き: キャラごとの状態を初期化するヘルパー
+function ensureBlinkState(ch) {
+  if (ch._blink) return ch._blink
+  ch._blink = {
+    timer: Math.random() * 3,  // 初期タイミングをランダム化
+    nextAt: 2 + Math.random() * 4,
+    phase: 0,
+    value: 0
+  }
+  return ch._blink
 }
 
-function updateBlink(delta) {
-  if (!currentVRM) return
+const BLINK_CLOSE_SPEED = 12
+const BLINK_OPEN_SPEED = 6
 
-  blinkTimer += delta
+function updateBlinkForChar(ch, delta) {
+  if (!ch.vrm) return
+  const b = ensureBlinkState(ch)
 
-  if (blinkPhase === 0) {
-    // 待機中
-    if (blinkTimer >= nextBlinkAt) {
-      blinkPhase = 1
-      blinkTimer = 0
+  b.timer += delta
+  if (b.phase === 0) {
+    if (b.timer >= b.nextAt) {
+      b.phase = 1
+      b.timer = 0
     }
-  } else if (blinkPhase === 1) {
-    // 閉じ中
-    blinkValue = Math.min(1, blinkValue + delta * BLINK_CLOSE_SPEED)
-    if (blinkValue >= 1) {
-      blinkPhase = 2
-    }
-  } else if (blinkPhase === 2) {
-    // 開き中
-    blinkValue = Math.max(0, blinkValue - delta * BLINK_OPEN_SPEED)
-    if (blinkValue <= 0) {
-      blinkPhase = 0
-      blinkTimer = 0
-      nextBlinkAt = randomBlinkInterval()
-      // たまに連続瞬き
-      if (Math.random() < 0.15) nextBlinkAt = 0.2
+  } else if (b.phase === 1) {
+    b.value = Math.min(1, b.value + delta * BLINK_CLOSE_SPEED)
+    if (b.value >= 1) b.phase = 2
+  } else if (b.phase === 2) {
+    b.value = Math.max(0, b.value - delta * BLINK_OPEN_SPEED)
+    if (b.value <= 0) {
+      b.phase = 0
+      b.timer = 0
+      b.nextAt = 2 + Math.random() * 4
+      if (Math.random() < 0.15) b.nextAt = 0.2  // 連続瞬き
     }
   }
-
-  currentVRM.expressionManager?.setValue('blink', blinkValue)
+  ch.vrm.expressionManager?.setValue('blink', b.value)
 }
 
 function updateIdleSway(delta) {
@@ -3874,25 +3871,26 @@ function animate() {
   if (pngtuberMode) {
     updateLipSync()
   } else if (currentVRM) {
-    updateLipSync()  // アクティブキャラのみlip sync
+    updateLipSync()
   }
 
-  // 全キャラクターの更新（まばたき・idle・VRM update・リアクション）
+  // 全キャラクターの更新
   for (let ci = 0; ci < characters.length; ci++) {
     const ch = characters[ci]
     if (!ch.vrm) continue
     const savedVRM = currentVRM
     currentVRM = ch.vrm
 
+    // まばたき（キャラごと独立）
+    updateBlinkForChar(ch, delta)
+
     if (ch.vrm === savedVRM) {
-      // アクティブキャラ: まばたき + idle揺れ
-      updateBlink(delta)
+      // アクティブキャラ: idle揺れ
       updateIdleSway(delta)
     } else {
-      // 非アクティブキャラ: まばたき + 少しずれたidle揺れ
+      // 非アクティブキャラ: 少しずれたidle揺れ
       const savedElapsed = elapsedTime
       elapsedTime += ci * 3.7
-      updateBlink(delta)
       updateIdleSway(delta)
       elapsedTime = savedElapsed
     }
@@ -3906,9 +3904,9 @@ function animate() {
       const upperChest = humanoid.getNormalizedBoneNode('upperChest')
 
       // --- 初期化 ---
-      if (!ch._reaction) ch._reaction = { type: 'none', timer: 0, intensity: 0 }
-      if (!ch._nodPhase) ch._nodPhase = 0
-      if (!ch._nodTimer) ch._nodTimer = 2 + Math.random() * 3
+      if (!ch._reaction) ch._reaction = { type: 'none', timer: 0, intensity: 0, duration: 0 }
+      if (ch._nodPhase === undefined) ch._nodPhase = 0
+      if (ch._nodTimer === undefined) ch._nodTimer = 2 + Math.random() * 3
 
       // --- 頷きリアクション（非アクティブ or アクティブでもたまに） ---
       const isActive = ch.vrm === savedVRM
