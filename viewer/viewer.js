@@ -2206,6 +2206,8 @@ const FREE_TALK_TOPICS = [
     { theme: 'ゲーム実況', hook: '最近やったゲームの話', season: null },
     { theme: 'ネットミーム', hook: '最近面白かったネタの話', season: null },
     { theme: 'スマホの中身', hook: 'スマホに入れてるアプリの話', season: null },
+    { theme: '映画の話', hook: '最近観た映画がすごく良かった話', season: null },
+    { theme: 'もしタイムマシンがあったら', hook: 'タイムマシンがあったら何する？妄想トーク', season: null },
   ]},
 ]
 
@@ -2285,20 +2287,68 @@ const COMMENT_REPLY_RULES = `
 - 表情: neutral, happy, sad, surprised, relaxed
 例: [happy,0.8] ありがとう先輩！めっちゃ嬉しいっす！`
 
-// 話題の重み付きランダム選択（季節・時間フィルタ付き）
+// 外部話題JSON読み込み（GitHub等から追加話題を取得）
+let externalTopics = []
+let externalTopicsLoaded = false
+
+async function loadExternalTopics() {
+  if (externalTopicsLoaded) return
+  externalTopicsLoaded = true
+  try {
+    // aituber-radio-station の freetalk-topics.json を取得
+    const urls = [
+      'https://raw.githubusercontent.com/k3peta/aituber-radio-station/main/freetalk-topics.json'
+    ]
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { cache: 'no-cache' })
+        if (!res.ok) continue
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          externalTopics.push(...data)
+          console.log(`📝 外部話題を${data.length}カテゴリ読み込み`)
+        }
+      } catch (e) {
+        console.warn('外部話題の読み込みをスキップ:', url, e.message)
+      }
+    }
+  } catch (e) {
+    console.warn('外部話題読み込みエラー:', e)
+  }
+}
+
+// 起動時にバックグラウンドで読み込み
+loadExternalTopics()
+
+// 話題の重み付きランダム選択（季節・時間・日付フィルタ付き）
 function pickFreeTalkTopic() {
   const now = new Date()
   const month = now.getMonth() + 1
+  const day = now.getDate()
   const hour = now.getHours()
   const isNight = hour >= 21 || hour < 5
+  const isMorning = hour >= 5 && hour < 11
 
-  // 季節と時間帯でフィルタリング
+  // 内蔵 + 外部話題をマージ
+  const allCategories = [...FREE_TALK_TOPICS, ...externalTopics]
+
+  // 季節・時間帯・日付でフィルタリング
   const available = []
-  for (const cat of FREE_TALK_TOPICS) {
+  for (const cat of allCategories) {
     for (const topic of cat.topics) {
+      // 季節フィルタ
       if (topic.season && !topic.season.includes(month)) continue
+      // 日付フィルタ（特定日付範囲のイベント）
+      if (topic.date) {
+        if (topic.date.month !== month) continue
+        if (day < topic.date.dayFrom || day > topic.date.dayTo) continue
+      }
+      // 時間帯フィルタ
       if (topic.time === 'night' && !isNight) continue
-      for (let w = 0; w < cat.weight; w++) {
+      if (topic.time === 'morning' && !isMorning) continue
+      // 重み付きで追加
+      const weight = cat.weight || 1
+      for (let w = 0; w < weight; w++) {
         available.push(topic)
       }
     }
