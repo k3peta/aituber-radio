@@ -3742,12 +3742,39 @@ function animate() {
       updateBlink(delta)
       updateIdleSway(delta)
     } else {
-      // 非アクティブキャラ: まばたき + 少しずれたidle揺れ
+      // 非アクティブキャラ: まばたき + 少しずれたidle揺れ + ランダム頷き
       const savedElapsed = elapsedTime
       elapsedTime += ci * 3.7  // キャラごとにタイミングずらし
       updateBlink(delta)
       updateIdleSway(delta)
       elapsedTime = savedElapsed
+
+      // 頷きリアクション（再生中のみ）
+      if (isPlaying) {
+        const humanoid = ch.vrm.humanoid
+        const head = humanoid?.getNormalizedBoneNode('head')
+        if (head) {
+          // nodPhase: 0=待機, >0=頷き中
+          if (!ch._nodPhase) ch._nodPhase = 0
+          if (!ch._nodTimer) ch._nodTimer = 2 + Math.random() * 3
+
+          ch._nodTimer -= delta
+          if (ch._nodTimer <= 0 && ch._nodPhase === 0) {
+            ch._nodPhase = 1  // 頷き開始
+            ch._nodTimer = 0.3  // 頷きの長さ
+          }
+
+          if (ch._nodPhase === 1) {
+            // 軽く下を向く
+            head.rotation.x += Math.sin(ch._nodTimer * Math.PI / 0.3) * 0.06
+            ch._nodTimer -= delta
+            if (ch._nodTimer <= 0) {
+              ch._nodPhase = 0
+              ch._nodTimer = 2 + Math.random() * 4  // 次の頷きまで
+            }
+          }
+        }
+      }
     }
 
     currentVRM = savedVRM
