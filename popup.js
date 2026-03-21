@@ -259,7 +259,7 @@ document.getElementById('loadCharVRM1').addEventListener('click', () => {
   document.getElementById('charStatus1').textContent = '📂 選択中...'
 })
 
-// 保存
+// 保存（キャラ設定 + カメラ位置）
 document.getElementById('saveCharSlots').addEventListener('click', async () => {
   const chars = [
     { name: document.getElementById('charName0').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker0').value) || 38, prompt: document.getElementById('charPrompt0').value.trim() },
@@ -269,7 +269,32 @@ document.getElementById('saveCharSlots').addEventListener('click', async () => {
   const angle = parseInt(document.getElementById('charAngle').value) || 20
   await chrome.storage.local.set({ characterSlots: chars, charSpacing: spacing, charAngle: angle })
   await sendToViewer('update-characters', { characters: chars, spacing, angle })
-  document.getElementById('charSlotFeedback').textContent = '✅ 保存しました'
+  await sendToViewer('save-camera')  // カメラ位置も同時保存
+  document.getElementById('charSlotFeedback').textContent = '✅ 保存しました（カメラ含む）'
+  setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
+})
+
+// リセット（位置・角度・カメラ全リセット）
+document.getElementById('resetCharSlots').addEventListener('click', async () => {
+  // UIをデフォルトに戻す
+  document.getElementById('charName0').value = '怪談ちゃん'
+  document.getElementById('charSpeaker0').value = 38
+  document.getElementById('charSpeakerId0').textContent = '38'
+  document.getElementById('charPrompt0').value = ''
+  document.getElementById('charName1').value = ''
+  document.getElementById('charSpeaker1').value = 3
+  document.getElementById('charSpeakerId1').textContent = '3'
+  document.getElementById('charPrompt1').value = ''
+  document.getElementById('charSpacing').value = 0.5
+  document.getElementById('charSpacingVal').textContent = '0.5'
+  document.getElementById('charAngle').value = 20
+  document.getElementById('charAngleVal').textContent = '20°'
+
+  // ストレージもリセット
+  await chrome.storage.local.remove(['characterSlots', 'charSpacing', 'charAngle', 'cameraPosition'])
+  await sendToViewer('reset-camera')
+  await sendToViewer('update-characters', { spacing: 0.5, angle: 20 })
+  document.getElementById('charSlotFeedback').textContent = '🔄 リセットしました'
   setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
 })
 
@@ -324,15 +349,6 @@ document.getElementById('testSpeak').addEventListener('click', () => {
 
 document.getElementById('testEmotion').addEventListener('click', () => {
   sendToViewer('cycle-emotion')
-})
-
-// カメラ
-document.getElementById('saveCamera').addEventListener('click', () => {
-  sendToViewer('save-camera')
-})
-
-document.getElementById('resetCamera').addEventListener('click', () => {
-  sendToViewer('reset-camera')
 })
 
 // プリフェッチ
