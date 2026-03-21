@@ -988,6 +988,19 @@ function updateLipSync() {
 const creditOverlay = document.getElementById('credit-overlay')
 let creditTimer = null
 
+// 再生中に使用したspeakerIdを収集（クレジット漏れ防止）
+const usedSpeakerIds = new Set()
+
+function trackSpeakerUsage(speakerId) {
+  if (speakerId !== undefined && speakerId !== null) {
+    usedSpeakerIds.add(Number(speakerId))
+  }
+}
+
+function clearSpeakerUsage() {
+  usedSpeakerIds.clear()
+}
+
 // VOICEVOX speakerId → キャラ名マッピング（主要キャラ）
 // ❗ popup.js にも同様の VOICEVOX_SPEAKERS があります。片方を更新したら両方更新してください。
 const VOICEVOX_SPEAKERS = {
@@ -1012,28 +1025,32 @@ function getVoicevoxCreditName(speakerId) {
 }
 
 /**
- * クレジットを自動生成して表示
- * @param {number} durationMs 表示時間（ミリ秒）。0なら手動で非表示にするまで表示。
- * @param {string} customCredit カスタムクレジットテキスト（指定すると自動生成を上書き）
+ * クレジットを自動生成して表示（使用した全speakerIdから）
  */
 function showCredits(durationMs = 8000, customCredit = '') {
   if (!creditOverlay) return
 
   let creditText = customCredit
   if (!creditText) {
-    // 自動生成
     const lines = ['AITuber Radio']
-    const usedSpeakers = new Set()
-    for (const ch of characters) {
-      if (ch.vrm && ch.name && ch.speakerId !== undefined) {
-        const voiceName = ttsEngine === 'voicevox'
-          ? getVoicevoxCreditName(ch.speakerId)
-          : ttsEngine === 'sbv2' ? `Style-Bert-VITS2` : 'ブラウザTTS'
-        if (!usedSpeakers.has(ch.speakerId)) {
-          lines.push(voiceName)
-          usedSpeakers.add(ch.speakerId)
+    if (ttsEngine === 'voicevox') {
+      // 使用した全speakerIdからクレジット生成
+      const sortedIds = [...usedSpeakerIds].sort((a, b) => a - b)
+      for (const id of sortedIds) {
+        lines.push(getVoicevoxCreditName(id))
+      }
+      // usedSpeakerIdsが空の場合、キャラ設定からフォールバック
+      if (sortedIds.length === 0) {
+        for (const ch of characters) {
+          if (ch.vrm && ch.name && ch.speakerId !== undefined) {
+            lines.push(getVoicevoxCreditName(ch.speakerId))
+          }
         }
       }
+    } else if (ttsEngine === 'sbv2') {
+      lines.push('Style-Bert-VITS2')
+    } else {
+      lines.push('ブラウザTTS')
     }
     creditText = lines.join('\n')
   }
@@ -1128,6 +1145,7 @@ async function checkVoicevox() { return checkTTS() }
  */
 async function synthesize(text, speakerId = 38) {
   if (!ttsAvailable) return null
+  trackSpeakerUsage(speakerId)
 
   let wavBuffer
 
@@ -1890,6 +1908,7 @@ async function playScript(script) {
 
   isPlaying = true
   stopRequested = false
+  clearSpeakerUsage()
   const { meta, dialogues: rawDialogues } = script
   const title = meta.title || '台本'
 
@@ -1966,6 +1985,7 @@ async function playScriptWithJingles(script) {
   if (isPlaying) { stopRequested = true; return }
   isPlaying = true
   stopRequested = false
+  clearSpeakerUsage()
 
   // セクション境界を検出: _sectionStart フラグでカウント
   let sectionCount = 0
@@ -2602,6 +2622,7 @@ async function playFreeTalk() {
 
   isPlaying = true
   stopRequested = false
+  clearSpeakerUsage()
 
   let topic, dialogues
 
@@ -3026,6 +3047,7 @@ async function playSetlist(setlist) {
 
   isPlaying = true
   stopRequested = false
+  clearSpeakerUsage()
   const { meta, segments } = setlist
   const title = meta.title || 'セットリスト'
   const globalSpeaker = meta.speaker ? parseInt(meta.speaker) : 38
