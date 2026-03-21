@@ -4219,8 +4219,10 @@ async function loadAndPlayDefaultSetlist() {
     const defaultVRM = chrome.runtime.getURL('viewer/default_model.vrm')
     const res = await fetch(defaultVRM, { method: 'HEAD' })
     if (res.ok) {
-      await loadVRM(defaultVRM)
-      // VRM読み込み後に保存済みカメラ位置を再適用（loadVRMがカメラを動かすため）
+      characters[0].name = '怪談ちゃん'
+      characters[0].speakerId = 38
+      await loadCharacterVRM(defaultVRM, 0)
+      // VRM読み込み後に保存済みカメラ位置を再適用（loadCharacterVRMがカメラを動かすため）
       if (hasSavedCamera) await loadCameraPosition()
     } else {
       status.textContent = '📂 VRMをドロップで読み込み'
