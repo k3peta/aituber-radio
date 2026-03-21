@@ -725,23 +725,24 @@ async function loadCharacterVRM(url, slotIndex = 0) {
 let charSpacing = 0.5   // キャラ間の距離
 let charInwardAngle = 20  // 向き合い角度（度数）
 
-function repositionCharacters() {
+function repositionCharacters(skipCamera = false) {
   const loaded = characters.filter(c => c.vrm)
   const count = loaded.length
 
   if (count === 1) {
-    // 1体: 中央配置（デフォルト）
+    // 1体: 中央配置
     loaded[0].vrm.scene.position.set(0, 0, 0)
     loaded[0].vrm.scene.rotation.set(0, 0, 0)
 
-    // カメラを顔に合わせる
-    const head = loaded[0].vrm.humanoid?.getNormalizedBoneNode('head')
-    if (head) {
-      const headPos = new THREE.Vector3()
-      head.getWorldPosition(headPos)
-      controls.target.set(0, headPos.y - 0.05, 0)
-      camera.position.set(0, headPos.y, 2.0)
-      controls.update()
+    if (!skipCamera) {
+      const head = loaded[0].vrm.humanoid?.getNormalizedBoneNode('head')
+      if (head) {
+        const headPos = new THREE.Vector3()
+        head.getWorldPosition(headPos)
+        controls.target.set(0, headPos.y - 0.05, 0)
+        camera.position.set(0, headPos.y, 2.0)
+        controls.update()
+      }
     }
   } else if (count === 2) {
     // 2体: 左右に配置、少し内向き
@@ -756,14 +757,15 @@ function repositionCharacters() {
       characters[1].vrm.scene.rotation.set(0, -inwardRad, 0)
     }
 
-    // カメラを中心に合わせる
-    const head0 = characters[0].vrm?.humanoid?.getNormalizedBoneNode('head')
-    if (head0) {
-      const headPos = new THREE.Vector3()
-      head0.getWorldPosition(headPos)
-      controls.target.set(0, headPos.y - 0.05, 0)
-      camera.position.set(0, headPos.y, 2.8)
-      controls.update()
+    if (!skipCamera) {
+      const head0 = characters[0].vrm?.humanoid?.getNormalizedBoneNode('head')
+      if (head0) {
+        const headPos = new THREE.Vector3()
+        head0.getWorldPosition(headPos)
+        controls.target.set(0, headPos.y - 0.05, 0)
+        camera.position.set(0, headPos.y, 2.8)
+        controls.update()
+      }
     }
   }
 }
@@ -4009,7 +4011,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       if (msg.spacing !== undefined) charSpacing = msg.spacing
       if (msg.angle !== undefined) charInwardAngle = msg.angle
-      repositionCharacters()
+      repositionCharacters(true)  // カメラは触らない
       break
     case 'load-character-vrm':
       // 指定スロットにVRMを読み込む（既存のhidden inputを使用）

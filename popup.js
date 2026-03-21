@@ -268,8 +268,8 @@ document.getElementById('saveCharSlots').addEventListener('click', async () => {
   const spacing = parseFloat(document.getElementById('charSpacing').value) || 0.5
   const angle = parseInt(document.getElementById('charAngle').value) || 20
   await chrome.storage.local.set({ characterSlots: chars, charSpacing: spacing, charAngle: angle })
+  await sendToViewer('save-camera')  // カメラ位置を先に保存（update-charactersで上書きされないように）
   await sendToViewer('update-characters', { characters: chars, spacing, angle })
-  await sendToViewer('save-camera')  // カメラ位置も同時保存
   document.getElementById('charSlotFeedback').textContent = '✅ 保存しました（カメラ含む）'
   setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
 })
