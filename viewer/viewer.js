@@ -1183,23 +1183,44 @@ async function synthesize(text, speakerId = 38) {
 
 /**
  * AudioBuffer を再生（リップシンク・ダッキング付き）
+ * 再生中のソースを追跡し、stopCurrentAudio()で即座に停止可能
  */
+let _currentAudioSource = null
+
 function playAudio(audioBuffer) {
   const source = audioCtx.createBufferSource()
   source.buffer = audioBuffer
   source.connect(masterGain)
   source.connect(analyser)
 
+  _currentAudioSource = source
   duckBGM()
 
   return new Promise((resolve) => {
     source.onended = () => {
+      if (_currentAudioSource === source) _currentAudioSource = null
       unduckBGM()
       status.textContent = ''
       resolve()
     }
     source.start()
   })
+}
+
+/**
+ * 再生中の音声を即座に停止
+ */
+function stopCurrentAudio() {
+  if (_currentAudioSource) {
+    try { _currentAudioSource.stop() } catch {}
+    _currentAudioSource = null
+  }
+  // ブラウザTTSも停止
+  if (browserTTSSpeaking) {
+    speechSynthesis.cancel()
+    browserTTSSpeaking = false
+  }
+  unduckBGM()
 }
 
 /**
@@ -4006,7 +4027,7 @@ function animate() {
 
   // characters未使用時の後方互換（1体のみの旧動作）
   if (!characters[0].vrm && currentVRM) {
-    updateBlink(delta)
+    // レガシーモード: characters配列を使わない単体VRM
     updateIdleSway(delta)
     currentVRM.update(delta)
     if (mixer) mixer.update(delta)
@@ -4050,6 +4071,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break
     case 'stop-playback':
       if (isPlaying) stopRequested = true
+      stopCurrentAudio()
       stopBGM()
       break
     case 'update-characters':
