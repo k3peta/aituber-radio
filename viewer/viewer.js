@@ -2650,8 +2650,12 @@ async function playFreeTalk() {
 
   hideSubtitle()
   setEmotion('neutral')
-  if (autoRecording) stopRecording()
   showCredits(8000)  // 8秒間クレジット表示
+  if (autoRecording) {
+    // クレジットが録画に映るよう少し待ってから停止
+    await sleep(8500)
+    stopRecording()
+  }
   status.textContent = `✅ フリートーク「${topic.theme}」完了`
   isPlaying = false
 }
