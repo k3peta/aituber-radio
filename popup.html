@@ -259,6 +259,20 @@
             <span id="charStatus1" style="font-size:9px;color:#4caf50"></span>
           </div>
         </div>
+        <div style="border-top:1px solid #2a2a3a;padding-top:8px;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:10px;color:#888">間隔:</span>
+            <input type="range" id="charSpacing" min="0.2" max="1.5" step="0.05" value="0.5"
+                   style="flex:1;accent-color:#e94560">
+            <span id="charSpacingVal" style="font-size:10px;color:#aaa;width:30px">0.5</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:#888">位置:</span>
+            <input type="range" id="charOffset" min="-1.0" max="1.0" step="0.05" value="0"
+                   style="flex:1;accent-color:#7eb8ff">
+            <span id="charOffsetVal" style="font-size:10px;color:#aaa;width:30px">0</span>
+          </div>
+        </div>
         <button class="btn-accent" id="saveCharSlots" style="margin-top:8px;width:100%">💾 保存</button>
         <div class="save-feedback" id="charSlotFeedback"></div>
       </div>

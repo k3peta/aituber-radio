@@ -722,6 +722,9 @@ async function loadCharacterVRM(url, slotIndex = 0) {
 }
 
 // キャラクターの位置を再配置
+let charSpacing = 0.5   // キャラ間の距離
+let charGroupOffset = 0  // グループ全体の左右位置
+
 function repositionCharacters() {
   const loaded = characters.filter(c => c.vrm)
   const count = loaded.length
@@ -742,31 +745,24 @@ function repositionCharacters() {
     }
   } else if (count === 2) {
     // 2体: 左右に配置、少し内向き
-    const offset = 0.5  // 左右の距離
-    const inwardAngle = 0.15  // 内向きの角度（ラジアン）
+    const inwardAngle = 0.35  // 約20度 お互い向き合う
 
-    // スロット0 を左、スロット1 を右
-    const leftChar = characters[0].vrm ? characters[0] : characters[1]
-    const rightChar = characters[1].vrm ? characters[1] : characters[0]
-
-    if (leftChar.vrm) {
-      leftChar.vrm.scene.position.set(-offset, 0, 0)
-      leftChar.vrm.scene.rotation.set(0, inwardAngle, 0)
-      leftChar.position = 'left'
+    if (characters[0].vrm) {
+      characters[0].vrm.scene.position.set(-charSpacing + charGroupOffset, 0, 0)
+      characters[0].vrm.scene.rotation.set(0, inwardAngle, 0)
     }
-    if (rightChar.vrm) {
-      rightChar.vrm.scene.position.set(offset, 0, 0)
-      rightChar.vrm.scene.rotation.set(0, -inwardAngle, 0)
-      rightChar.position = 'right'
+    if (characters[1].vrm) {
+      characters[1].vrm.scene.position.set(charSpacing + charGroupOffset, 0, 0)
+      characters[1].vrm.scene.rotation.set(0, -inwardAngle, 0)
     }
 
-    // カメラを2体の中間に合わせる
+    // カメラを中心に合わせる
     const head0 = characters[0].vrm?.humanoid?.getNormalizedBoneNode('head')
     if (head0) {
       const headPos = new THREE.Vector3()
       head0.getWorldPosition(headPos)
-      controls.target.set(0, headPos.y - 0.05, 0)
-      camera.position.set(0, headPos.y, 2.8)  // 少し引く
+      controls.target.set(charGroupOffset, headPos.y - 0.05, 0)
+      camera.position.set(charGroupOffset, headPos.y, 2.8)
       controls.update()
     }
   }
@@ -3725,6 +3721,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         })
         console.log('🎭 Characters updated:', characters.map(c => `${c.name}(${c.speakerId})`))
       }
+      if (msg.spacing !== undefined) charSpacing = msg.spacing
+      if (msg.offset !== undefined) charGroupOffset = msg.offset
+      repositionCharacters()
       break
     case 'load-character-vrm':
       // 指定スロットにVRMを読み込む（既存のhidden inputを使用）

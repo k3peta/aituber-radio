@@ -219,14 +219,26 @@ document.getElementById('saveCharSlots').addEventListener('click', async () => {
     { name: document.getElementById('charName0').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker0').value) || 38 },
     { name: document.getElementById('charName1').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker1').value) || 3 }
   ]
-  await chrome.storage.local.set({ characterSlots: chars })
-  await sendToViewer('update-characters', { characters: chars })
+  const spacing = parseFloat(document.getElementById('charSpacing').value) || 0.5
+  const offset = parseFloat(document.getElementById('charOffset').value) || 0
+  await chrome.storage.local.set({ characterSlots: chars, charSpacing: spacing, charOffset: offset })
+  await sendToViewer('update-characters', { characters: chars, spacing, offset })
   document.getElementById('charSlotFeedback').textContent = '✅ 保存しました'
   setTimeout(() => { document.getElementById('charSlotFeedback').textContent = '' }, 2000)
 })
 
+// 間隔・位置スライダー: リアルタイム反映
+document.getElementById('charSpacing').addEventListener('input', (e) => {
+  document.getElementById('charSpacingVal').textContent = e.target.value
+  sendToViewer('update-characters', { spacing: parseFloat(e.target.value) })
+})
+document.getElementById('charOffset').addEventListener('input', (e) => {
+  document.getElementById('charOffsetVal').textContent = e.target.value
+  sendToViewer('update-characters', { offset: parseFloat(e.target.value) })
+})
+
 // 復元
-chrome.storage.local.get(['characterSlots'], (data) => {
+chrome.storage.local.get(['characterSlots', 'charSpacing', 'charOffset'], (data) => {
   if (data.characterSlots) {
     const slots = data.characterSlots
     if (slots[0]) {
@@ -237,6 +249,14 @@ chrome.storage.local.get(['characterSlots'], (data) => {
       document.getElementById('charName1').value = slots[1].name || ''
       document.getElementById('charSpeaker1').value = slots[1].speakerId || 3
     }
+  }
+  if (data.charSpacing !== undefined) {
+    document.getElementById('charSpacing').value = data.charSpacing
+    document.getElementById('charSpacingVal').textContent = data.charSpacing
+  }
+  if (data.charOffset !== undefined) {
+    document.getElementById('charOffset').value = data.charOffset
+    document.getElementById('charOffsetVal').textContent = data.charOffset
   }
 })
 
