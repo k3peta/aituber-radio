@@ -2256,9 +2256,21 @@ async function generateFreeTalkText(topic) {
     ? `\n※最近話した話題: ${recentTopics.join('、')}。これらと違う切り口で話してください。`
     : ''
 
-  const userPrompt = `${timeContext}です。
+  // 2キャラ判定
+  const activeChars = characters.filter(c => c.vrm && c.name)
+  const isMultiChar = activeChars.length >= 2
+
+  let userPrompt
+  if (isMultiChar) {
+    const charNames = activeChars.map(c => c.name).join('と')
+    userPrompt = `${timeContext}です。
+${charNames}の2人で「${topic.theme}」について「${topic.hook}」をきっかけに掛け合いトークをしてください。
+各セリフの前に [char: キャラ名] を付けてください。2人が交互に話してください。${historyHint}`
+  } else {
+    userPrompt = `${timeContext}です。
 「${topic.theme}」について、「${topic.hook}」をきっかけに5分程度のフリートークをしてください。
 自分の実体験のように具体的に語ってください。${historyHint}`
+  }
 
   try {
     status.textContent = '🤔 話題を考え中...'
@@ -2283,6 +2295,15 @@ async function generateFreeTalkText(topic) {
  * API なしのフォールバック（テンプレートベース）
  */
 function generateFallbackFreeTalk(topic) {
+  const activeChars = characters.filter(c => c.vrm && c.name)
+  const isMultiChar = activeChars.length >= 2
+
+  if (isMultiChar) {
+    const c1 = activeChars[0].name
+    const c2 = activeChars[1].name
+    return `[char: ${c1}]\n[happy,0.8] ねえねえ、${topic.theme}の話しようよ！\n[char: ${c2}]\n[neutral,0.7] えー、${topic.theme}？いいよ、なになに？\n[char: ${c1}]\n[happy,0.7] ${topic.hook}があったんすよ！\n[char: ${c2}]\n[surprised,0.8] マジで！？それすごいね！\n[char: ${c1}]\n[neutral,0.7] いやーでも${topic.theme}って面白いっすよね。\n[char: ${c2}]\n[happy,0.7] うんうん、わかるわかる！`
+  }
+
   const intros = [
     `[happy,0.8] あ、そうだ。${topic.hook}をしたいんすけど。`,
     `[neutral,0.7] ねえ先輩、聞いてくださいよ。${topic.hook}があってさ。`,
@@ -2304,21 +2325,30 @@ function generateFallbackFreeTalk(topic) {
 function parseFreeTalkOutput(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
   const dialogues = []
+  let currentChar = null
 
   for (const line of lines) {
+    // [char: xxx] タグ
+    const charMatch = line.match(/^\[char:\s*(.+?)\]$/)
+    if (charMatch) {
+      currentChar = charMatch[1].trim()
+      continue
+    }
+
     const tagMatch = line.match(/^\[(\w+),\s*([\d.]+)\]\s*(.+)$/)
     if (tagMatch) {
       dialogues.push({
         emotion: tagMatch[1],
         intensity: parseFloat(tagMatch[2]),
-        text: cleanTextForSpeech(tagMatch[3])
+        text: cleanTextForSpeech(tagMatch[3]),
+        character: currentChar
       })
     } else if (line.length > 5 && !line.startsWith('#') && !line.startsWith('---')) {
-      // タグなし行もフォールバックとして取り込む
       dialogues.push({
         emotion: 'neutral',
         intensity: 0.7,
         text: cleanTextForSpeech(line),
+        character: currentChar,
         _untagged: true
       })
     }
@@ -2407,9 +2437,11 @@ async function playFreeTalk() {
 
   status.textContent = `🗣️ フリートーク「${topic.theme}」`
 
-  await speakPipeline(dialogues, 38, (line, i) => {
+  const defaultSpeaker = characters[0]?.speakerId || 38
+  await speakPipeline(dialogues, defaultSpeaker, (line, i) => {
     setEmotion(line.emotion, line.intensity)
-    showSubtitle(line.text, `🗣️ ${topic.theme}（${i + 1}/${dialogues.length}）`)
+    const charLabel = line.character ? `${line.character}: ` : ''
+    showSubtitle(line.text, `🗣️ ${charLabel}${topic.theme}（${i + 1}/${dialogues.length}）`)
   })
 
   hideSubtitle()
