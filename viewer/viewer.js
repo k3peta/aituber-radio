@@ -676,7 +676,15 @@ async function loadCharacterVRM(url, slotIndex = 0) {
 
   const slot = characters[slotIndex]
 
-  // 既存VRMを破棄
+  // レガシー loadVRM() で読み込まれたVRMを片付ける（characters[]に含まれない単体VRM）
+  if (currentVRM && !characters.some(c => c.vrm === currentVRM)) {
+    VRMUtils.deepDispose(currentVRM.scene)
+    scene.remove(currentVRM.scene)
+    currentVRM = null
+    mixer = null
+  }
+
+  // 既存スロットのVRMを破棄
   if (slot.vrm) {
     VRMUtils.deepDispose(slot.vrm.scene)
     scene.remove(slot.vrm.scene)
