@@ -811,13 +811,34 @@ function applyIdlePose(vrm, variant = 0) {
     if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.05
     if (rightLowerArm) rightLowerArm.rotation.z = Math.PI * 0.05
   } else {
-    // バリエーション: 少し腕を開く + 軽い首かしげ
+    // バリエーション: 少し腕を開く + 軽い首かしげ + 手を軽く握る
     if (leftUpperArm) leftUpperArm.rotation.z = -Math.PI * 0.38
     if (rightUpperArm) rightUpperArm.rotation.z = Math.PI * 0.38
     if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.03
     if (rightLowerArm) rightLowerArm.rotation.z = Math.PI * 0.03
     const head = humanoid.getNormalizedBoneNode('head')
     if (head) head.rotation.z = 0.04
+
+    // 指を軽く握る
+    const fingerBones = [
+      'leftThumbProximal', 'leftThumbIntermediate', 'leftThumbDistal',
+      'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
+      'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
+      'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
+      'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
+      'rightThumbProximal', 'rightThumbIntermediate', 'rightThumbDistal',
+      'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
+      'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
+      'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
+      'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal',
+    ]
+    for (const boneName of fingerBones) {
+      const bone = humanoid.getNormalizedBoneNode(boneName)
+      if (bone) {
+        const curl = boneName.includes('Thumb') ? 0.2 : 0.4  // 親指は軽め
+        bone.rotation.z = boneName.startsWith('left') ? -curl : curl
+      }
+    }
   }
 
   vrm.scene.updateMatrixWorld(true)
