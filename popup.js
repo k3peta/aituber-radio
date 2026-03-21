@@ -216,8 +216,8 @@ document.getElementById('loadCharVRM1').addEventListener('click', () => {
 // 保存
 document.getElementById('saveCharSlots').addEventListener('click', async () => {
   const chars = [
-    { name: document.getElementById('charName0').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker0').value) || 38 },
-    { name: document.getElementById('charName1').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker1').value) || 3 }
+    { name: document.getElementById('charName0').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker0').value) || 38, prompt: document.getElementById('charPrompt0').value.trim() },
+    { name: document.getElementById('charName1').value.trim(), speakerId: parseInt(document.getElementById('charSpeaker1').value) || 3, prompt: document.getElementById('charPrompt1').value.trim() }
   ]
   const spacing = parseFloat(document.getElementById('charSpacing').value) || 0.5
   const angle = parseInt(document.getElementById('charAngle').value) || 20
@@ -244,10 +244,12 @@ chrome.storage.local.get(['characterSlots', 'charSpacing', 'charAngle'], (data) 
     if (slots[0]) {
       document.getElementById('charName0').value = slots[0].name || ''
       document.getElementById('charSpeaker0').value = slots[0].speakerId || 38
+      document.getElementById('charPrompt0').value = slots[0].prompt || ''
     }
     if (slots[1]) {
       document.getElementById('charName1').value = slots[1].name || ''
       document.getElementById('charSpeaker1').value = slots[1].speakerId || 3
+      document.getElementById('charPrompt1').value = slots[1].prompt || ''
     }
   }
   if (data.charSpacing !== undefined) {
