@@ -15,6 +15,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm'
+import fixWebmDuration from 'fix-webm-duration'
 
 const status = document.getElementById('status')
 const canvas = document.getElementById('canvas')
@@ -424,7 +425,7 @@ async function startRecording(silent = false) {
       if (e.data.size > 0) recordedChunks.push(e.data)
     }
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       if (compositeAnimFrame) {
         cancelAnimationFrame(compositeAnimFrame)
         compositeAnimFrame = null
@@ -433,7 +434,18 @@ async function startRecording(silent = false) {
         capturedStream.getTracks().forEach(t => t.stop())
         capturedStream = null
       }
-      const blob = new Blob(recordedChunks, { type: 'video/webm' })
+      const rawBlob = new Blob(recordedChunks, { type: 'video/webm' })
+      const duration = Date.now() - recordingStartTime
+
+      // WebM Duration メタデータを修正（シーク対応）
+      let blob = rawBlob
+      try {
+        blob = await fixWebmDuration(rawBlob, duration, { logger: false })
+        console.log(`📹 WebM Duration fixed: ${(duration / 1000).toFixed(1)}s`)
+      } catch (e) {
+        console.warn('WebM duration fix failed, using raw blob:', e)
+      }
+
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       const now = new Date()
