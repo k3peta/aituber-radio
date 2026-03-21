@@ -1341,8 +1341,14 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
   // VOICEVOX/SBV2: 先読み合成パイプライン
   let prefetchedBuffer = null
   let prefetchPromise = null
+  let prefetchSpeaker = null
 
-  const firstSpeaker = lines[0]?.speaker || defaultSpeaker
+  let firstSpeaker = lines[0]?.speaker || defaultSpeaker
+  if (lines[0]?.character) {
+    const charIdx = findCharacterByName(lines[0].character)
+    if (charIdx >= 0) firstSpeaker = characters[charIdx].speakerId || firstSpeaker
+  }
+  prefetchSpeaker = firstSpeaker
   prefetchPromise = synthesize(ttsTexts[0], firstSpeaker).catch(() => null)
 
   for (let i = 0; i < lines.length; i++) {
@@ -1371,23 +1377,26 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
       let audioBuffer
       const t0 = performance.now()
 
-      if (prefetchPromise) {
+      if (prefetchPromise && prefetchSpeaker === speaker) {
         audioBuffer = await prefetchPromise
         prefetchPromise = null
-        console.log(`🔊 [${i}] prefetch hit: ${(performance.now() - t0).toFixed(0)}ms`)
-      } else if (prefetchedBuffer) {
-        audioBuffer = prefetchedBuffer
-        prefetchedBuffer = null
-        console.log(`🔊 [${i}] buffer hit: 0ms`)
+        console.log(`🔊 [${i}] prefetch hit (speaker:${speaker}): ${(performance.now() - t0).toFixed(0)}ms`)
       } else {
+        prefetchPromise = null  // speaker不一致のprefetchは破棄
         audioBuffer = await synthesize(ttsText, speaker)
-        console.log(`🔊 [${i}] sync synth: ${(performance.now() - t0).toFixed(0)}ms`)
+        console.log(`🔊 [${i}] sync synth (speaker:${speaker}): ${(performance.now() - t0).toFixed(0)}ms`)
       }
 
       if (i + 1 < lines.length && !stopRequested) {
         const nextLine = lines[i + 1]
-        const nextSpeaker = nextLine.speaker || defaultSpeaker
+        let nextSpeaker = nextLine.speaker || defaultSpeaker
+        // 次の行にキャラ指定があればそのspeakerIdを使う
+        if (nextLine.character) {
+          const nextCharIdx = findCharacterByName(nextLine.character)
+          if (nextCharIdx >= 0) nextSpeaker = characters[nextCharIdx].speakerId || nextSpeaker
+        }
         const nextTtsText = ttsTexts[i + 1] || nextLine.text
+        prefetchSpeaker = nextSpeaker
         prefetchPromise = synthesize(nextTtsText, nextSpeaker).catch(() => null)
       }
 
