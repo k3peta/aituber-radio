@@ -388,6 +388,31 @@ function startCompositeRender() {
       if (line) ctx.fillText(line, boxX + 32, textY + fontSize)
     }
 
+    // 6. クレジットオーバーレイ（Canvas録画用）
+    if (creditOverlay && creditOverlay.classList.contains('visible') && currentCreditText) {
+      const creditOpacity = parseFloat(window.getComputedStyle(creditOverlay).opacity) || 0
+      if (creditOpacity > 0) {
+        ctx.save()
+        ctx.globalAlpha = creditOpacity
+        const creditFontSize = Math.max(16, Math.floor(H / 45)) // 動画で潰れないフォントサイズ
+        ctx.font = `bold ${creditFontSize}px "Noto Sans JP", sans-serif`
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'
+        ctx.shadowColor = 'rgba(0,0,0,0.8)'
+        ctx.shadowBlur = 6
+        ctx.shadowOffsetX = 2
+        ctx.shadowOffsetY = 2
+        
+        const textLines = currentCreditText.split('\n')
+        const creditX = Math.round(W * 0.02)
+        let creditY = Math.round(H * 0.04) + creditFontSize
+        for (const line of textLines) {
+          ctx.fillText(line, creditX, creditY)
+          creditY += creditFontSize * 1.6
+        }
+        ctx.restore()
+      }
+    }
+
     compositeAnimFrame = requestAnimationFrame(renderFrame)
   }
 
@@ -996,6 +1021,7 @@ function updateLipSync() {
 // ============================================
 const creditOverlay = document.getElementById('credit-overlay')
 let creditTimer = null
+let currentCreditText = ''
 
 // 再生中に使用したspeakerIdを収集（クレジット漏れ防止）
 const usedSpeakerIds = new Set()
@@ -1064,6 +1090,7 @@ function showCredits(durationMs = 8000, customCredit = '') {
     creditText = lines.join('\n')
   }
 
+  currentCreditText = creditText
   creditOverlay.textContent = ''
   creditText.split('\n').forEach((line, i) => {
     if (i > 0) creditOverlay.appendChild(document.createElement('br'))
