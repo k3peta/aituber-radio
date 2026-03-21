@@ -7,7 +7,7 @@ pause_between: 500
 
 # テスト
 [type: talk]
-[bgm: media/bgm_chill.mp3]
+[bgm: media/bgm.mp3]
 [float: media/slide_select.png]
 
 SELECT * FROM users; {セレクト、アスタリスク、フロム、ユーザーズ}
