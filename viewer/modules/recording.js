@@ -21,6 +21,7 @@ let compositeAnimFrame = null
 // 録画用AudioNode（外部から設定）
 let recordDest = null
 let masterGain = null
+let _floatDbgTime = 0
 
 /**
  * 録画用のAudioNodeを初期化
@@ -65,6 +66,8 @@ function startCompositeRender() {
   const bgLayer = document.getElementById('bg-layer')
   const jingleOverlay = document.getElementById('jingle-overlay')
   const jingleImage = document.getElementById('jingle-image')
+  const floatOverlay = document.getElementById('float-overlay')
+  const floatImage = document.getElementById('float-image')
   const subtitleBox = document.getElementById('subtitle-box')
   const subtitleTitle = document.getElementById('subtitle-title')
   const subtitleText = document.getElementById('subtitle-text')
@@ -151,8 +154,6 @@ function startCompositeRender() {
     }
 
     // 4. フロート画像（図表・スライド）
-    const floatOverlay = document.getElementById('float-overlay')
-    const floatImage = document.getElementById('float-image')
     if (floatOverlay && floatOverlay.classList.contains('visible') && floatImage && floatImage.complete && floatImage.naturalWidth) {
       try {
         const opacity = parseFloat(getComputedStyle(floatOverlay).opacity) || 1
@@ -166,13 +167,12 @@ function startCompositeRender() {
         if (drawH > maxH) { drawH = maxH; drawW = drawH * imgRatio }
         const drawX = (W - drawW) / 2
         const drawY = (H - drawH) / 2
-        // 白背景カード
         const pad = 16
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
         ctx.shadowBlur = 32
-        ctx.beginPath()
         const cr = 12
+        ctx.beginPath()
         ctx.moveTo(drawX - pad + cr, drawY - pad)
         ctx.lineTo(drawX + drawW + pad - cr, drawY - pad)
         ctx.quadraticCurveTo(drawX + drawW + pad, drawY - pad, drawX + drawW + pad, drawY - pad + cr)
@@ -187,8 +187,7 @@ function startCompositeRender() {
         ctx.drawImage(floatImage, drawX, drawY, drawW, drawH)
         ctx.restore()
       } catch (e) {
-        ctx.restore()
-        console.warn('Float image draw failed (CORS?):', e.message)
+        // CORS等で描画失敗しても他レイヤーに影響しない
       }
     }
 
