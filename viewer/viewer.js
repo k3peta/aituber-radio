@@ -2767,6 +2767,144 @@ async function playFreeTalk() {
   stopRequested = false
 }
 
+/**
+ * フリートーク連鎖モード（停止するまで次々とフリートーク）
+ */
+async function playFreeTalkChain() {
+  if (isPlaying) {
+    stopRequested = true
+    return
+  }
+
+  isPlaying = true
+  stopRequested = false
+  clearSpeakerUsage()
+
+  let roundCount = 0
+
+  while (!stopRequested) {
+    roundCount++
+    let topic, dialogues
+
+    // プリフェッチキューから取得 or その場で生成
+    if (prefetchEnabled && freeTalkQueue.length > 0) {
+      const cached = freeTalkQueue.shift()
+      topic = cached.topic
+      dialogues = cached.dialogues
+      console.log(`🔄 Chain[${roundCount}] from cache:`, topic.theme)
+      prefetchFreeTalk()
+    } else {
+      topic = pickUniqueFreeTalkTopic()
+      status.textContent = `🤔 連鎖フリートーク[${roundCount}]「${topic.theme}」生成中...`
+      console.log(`🔄 Chain[${roundCount}] generating:`, topic.theme)
+
+      const text = await generateFreeTalkText(topic)
+      if (!text) {
+        console.warn('Chain: generation failed, retrying...')
+        await sleep(2000)
+        continue
+      }
+
+      dialogues = parseFreeTalkOutput(text)
+      if (dialogues.some(d => d._untagged)) {
+        dialogues = fallbackSplit(dialogues)
+      }
+      dialogues = assignCharactersToDialogues(dialogues)
+    }
+
+    if (stopRequested) break
+
+    status.textContent = `🗣️ 連鎖フリートーク[${roundCount}]「${topic.theme}」`
+
+    const defaultSpeaker = characters[0]?.speakerId || 38
+    await speakPipeline(dialogues, defaultSpeaker, (line, i) => {
+      setEmotion(line.emotion, line.intensity)
+      const charLabel = line.character ? `${line.character}: ` : ''
+      showSubtitle(line.text, `🔄 ${charLabel}${topic.theme}（${i + 1}/${dialogues.length}）`)
+    })
+
+    if (stopRequested) break
+
+    // 次の話題へのつなぎ
+    hideSubtitle()
+    setEmotion('neutral')
+
+    // コメントがあれば合間に処理
+    if (commentQueue.length > 0) {
+      await processComments(defaultSpeaker)
+    }
+
+    await sleep(1500)  // 話題間の間
+  }
+
+  hideSubtitle()
+  setEmotion('neutral')
+  showCredits(8000)
+  status.textContent = `✅ 連鎖フリートーク完了（${roundCount}話）`
+  isPlaying = false
+  stopRequested = false
+}
+
+// ============================================
+// カード再生（GitHub radio-station から取得）
+// ============================================
+const STATION_BASE_URL = 'https://raw.githubusercontent.com/k3peta/aituber-radio-station/main'
+
+async function playCard(cardId) {
+  if (isPlaying) {
+    stopRequested = true
+    await sleep(500)
+  }
+
+  status.textContent = `📦 カード「${cardId}」読み込み中...`
+
+  // card.json を取得
+  const cardUrl = `${STATION_BASE_URL}/cards/${cardId}/card.json`
+  const cardRes = await fetch(cardUrl)
+  if (!cardRes.ok) throw new Error(`カード取得失敗: ${cardRes.status}`)
+  const card = await cardRes.json()
+
+  console.log('📦 Card loaded:', card.title)
+
+  // メディアファイルをダウンロードしてlocalFilesに登録
+  if (card.media) {
+    for (const [localPath, remotePath] of Object.entries(card.media)) {
+      try {
+        const mediaUrl = `${STATION_BASE_URL}/cards/${cardId}/${remotePath}`
+        const res = await fetch(mediaUrl)
+        if (res.ok) {
+          const blob = await res.blob()
+          localFiles.set(localPath, URL.createObjectURL(blob))
+          console.log(`📦 Media cached: ${localPath}`)
+        }
+      } catch (e) {
+        console.warn(`📦 Media fetch failed: ${localPath}`, e)
+      }
+    }
+  }
+
+  // セットリストを取得
+  const setlistFile = card.setlist || 'setlist.md'
+  const setlistUrl = `${STATION_BASE_URL}/cards/${cardId}/${setlistFile}`
+  const setlistRes = await fetch(setlistUrl)
+  if (!setlistRes.ok) throw new Error(`セットリスト取得失敗: ${setlistRes.status}`)
+  const setlistText = await setlistRes.text()
+
+  // 台本を保存（次回再生時のため）
+  chrome.storage.local.set({ lastScript: setlistText, lastScriptName: card.title })
+
+  // 再生
+  if (isSetlist(setlistText)) {
+    const setlist = parseSetlist(setlistText)
+    status.textContent = `📻 「${card.title}」${setlist.segments.length}セグメント`
+    playSetlist(setlist)
+  } else {
+    const script = parseScript(setlistText)
+    status.textContent = `📖 「${card.title}」${script.dialogues.length}行`
+    playScript(script)
+  }
+}
+
 // ============================================
 // コメント読み上げ（わんコメ HTTP API ポーリング）
 // ============================================
@@ -4241,6 +4379,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break
     case 'free-talk':
       playFreeTalk()
+      break
+    case 'free-talk-chain':
+      playFreeTalkChain()
+      break
+    case 'play-card':
+      (async () => {
+        try {
+          await playCard(msg.cardId)
+        } catch (e) {
+          console.error('Card play error:', e)
+          status.textContent = `❌ カード再生エラー: ${e.message}`
+        }
+      })()
       break
     case 'toggle-local-chat':
       toggleLocalCommentBox()

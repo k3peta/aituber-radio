@@ -180,6 +180,10 @@ document.getElementById('freeTalk').addEventListener('click', () => {
   sendToViewer('free-talk')
 })
 
+document.getElementById('freeTalkChain').addEventListener('click', () => {
+  sendToViewer('free-talk-chain')
+})
+
 document.getElementById('toggleLocalChat').addEventListener('click', () => {
   sendToViewer('toggle-local-chat')
 })
