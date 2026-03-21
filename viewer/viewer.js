@@ -117,10 +117,7 @@ const characters = [
 ]
 let activeCharIndex = 0  // 現在話しているキャラのインデックス
 
-// 後方互換: currentVRM は characters[0].vrm を参照
-let _legacyVRM = null
-Object.defineProperty(window, '_currentVRMOverride', { value: false, writable: true })
-let currentVRM = null  // 互換用。loadVRM() と characters 両方から更新される
+let currentVRM = null  // アクティブキャラのVRM（loadVRM/characters両方から更新）
 let mixer = null
 const timer = new THREE.Timer()
 
@@ -1958,6 +1955,7 @@ async function playScript(script) {
   setEmotion('neutral')
   status.textContent = `✅ 「${title}」再生完了`
   isPlaying = false
+  stopRequested = false
 
   function cleanup() {
     hideSubtitle()
@@ -2081,9 +2079,10 @@ async function playScriptWithJingles(script) {
   hideSubtitle()
   setEmotion('neutral')
   await stopBGM()
-  showCredits(8000)  // 8秒間クレジット表示
+  showCredits(8000)
   status.textContent = `✅ 「${title}」再生完了`
   isPlaying = false
+  stopRequested = false
 
   function cleanup() {
     hideSubtitle()
@@ -2682,6 +2681,7 @@ async function playFreeTalk() {
   }
   status.textContent = `✅ フリートーク「${topic.theme}」完了`
   isPlaying = false
+  stopRequested = false
 }
 
 // ============================================
@@ -3519,6 +3519,7 @@ async function playSetlist(setlist) {
   setEmotion('neutral')
   status.textContent = `✅ 「${title}」放送終了`
   isPlaying = false
+  stopRequested = false
 
   function cleanup() {
     hideSubtitle()
