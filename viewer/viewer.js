@@ -802,17 +802,13 @@ function applyIdlePose(vrm, variant = 0) {
     if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.05
     if (rightLowerArm) rightLowerArm.rotation.z = Math.PI * 0.05
   } else {
-    // バリエーション: 片手を腰に、もう片方を軽く前に
-    if (leftUpperArm) leftUpperArm.rotation.z = -Math.PI * 0.35
-    if (rightUpperArm) rightUpperArm.rotation.z = Math.PI * 0.55
-    if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.08
-    if (rightLowerArm) {
-      rightLowerArm.rotation.z = Math.PI * 0.15
-      rightLowerArm.rotation.x = -Math.PI * 0.3
-    }
-    // 軽く首をかしげる
+    // バリエーション: 少し腕を開く + 軽い首かしげ
+    if (leftUpperArm) leftUpperArm.rotation.z = -Math.PI * 0.38
+    if (rightUpperArm) rightUpperArm.rotation.z = Math.PI * 0.38
+    if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.03
+    if (rightLowerArm) rightLowerArm.rotation.z = Math.PI * 0.03
     const head = humanoid.getNormalizedBoneNode('head')
-    if (head) head.rotation.z = 0.03
+    if (head) head.rotation.z = 0.04
   }
 
   vrm.scene.updateMatrixWorld(true)
