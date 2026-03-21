@@ -3699,23 +3699,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       break
     case 'load-character-vrm':
-      // 指定スロットにVRMを読み込む
-      (async () => {
+      // 指定スロットにVRMを読み込む（既存のhidden inputを使用）
+      {
         const slot = msg.slot || 0
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.accept = '.vrm'
-        input.onchange = async (e) => {
-          const file = e.target.files[0]
-          if (file) {
-            characters[slot].name = msg.name || ''
-            characters[slot].speakerId = msg.speakerId || (slot === 0 ? 38 : 3)
-            await loadCharacterVRM(URL.createObjectURL(file), slot)
-            status.textContent = `✅ キャラ${slot + 1}「${characters[slot].name}」読み込み完了`
-          }
+        const inputId = `charVRM${slot}Input`
+        const input = document.getElementById(inputId)
+        if (input) {
+          // 一時的にスロット情報を保存
+          input.dataset.charName = msg.name || ''
+          input.dataset.charSpeakerId = msg.speakerId || (slot === 0 ? 38 : 3)
+          input.click()
         }
-        input.click()
-      })()
+      }
       break
     case 'get-characters':
       sendResponse({
@@ -3882,6 +3877,20 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   loadVRM(URL.createObjectURL(file))
   e.target.value = ''
 })
+
+// キャラスロット用VRM読み込み
+for (let slot = 0; slot < 2; slot++) {
+  document.getElementById(`charVRM${slot}Input`).addEventListener('change', async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const input = e.target
+    characters[slot].name = input.dataset.charName || ''
+    characters[slot].speakerId = parseInt(input.dataset.charSpeakerId) || (slot === 0 ? 38 : 3)
+    await loadCharacterVRM(URL.createObjectURL(file), slot)
+    status.textContent = `✅ キャラ${slot + 1}「${characters[slot].name}」読み込み完了`
+    e.target.value = ''
+  })
+}
 
 document.getElementById('scriptInput').addEventListener('change', async (e) => {
   const file = e.target.files[0]
