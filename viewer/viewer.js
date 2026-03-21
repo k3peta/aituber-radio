@@ -771,16 +771,25 @@ function repositionCharacters() {
 // アクティブキャラを切り替え（lip sync対象）
 function setActiveCharacter(index) {
   if (index >= 0 && index < characters.length && characters[index].vrm) {
+    // 前のキャラの口を閉じる
+    if (currentVRM && currentVRM !== characters[index].vrm) {
+      currentVRM.expressionManager?.setValue('aa', 0)
+    }
     activeCharIndex = index
     currentVRM = characters[index].vrm
     mixer = characters[index].mixer
-    console.log(`🎭 Active character: ${characters[index].name || index}`)
+    console.log(`🎭 Active: ${characters[index].name || index} (speaker:${characters[index].speakerId})`)
   }
 }
 
-// キャラ名からスロットを検索
+// キャラ名からスロットを検索（部分一致対応）
 function findCharacterByName(name) {
-  return characters.findIndex(c => c.name === name)
+  if (!name) return -1
+  // 完全一致
+  const exact = characters.findIndex(c => c.name === name)
+  if (exact >= 0) return exact
+  // 部分一致（名前が含まれている、または含んでいる）
+  return characters.findIndex(c => c.name && (c.name.includes(name) || name.includes(c.name)))
 }
 
 // ============================================
@@ -1286,6 +1295,13 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
       if (stopRequested) return true
       const line = lines[i]
       const ttsText = ttsTexts[i] || line.text
+
+      // キャラクター切替
+      if (line.character) {
+        const charIdx = findCharacterByName(line.character)
+        if (charIdx >= 0) setActiveCharacter(charIdx)
+      }
+
       if (onLine) onLine(line, i)
       if (ttsText !== line.text) {
         console.log(`📝 [${i}] 表示: "${line.text}" → TTS: "${ttsText}"`)
