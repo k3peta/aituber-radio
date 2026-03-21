@@ -702,7 +702,7 @@ async function loadCharacterVRM(url, slotIndex = 0) {
     scene.add(vrm.scene)
     slot.vrm = vrm
     slot.mixer = new THREE.AnimationMixer(vrm.scene)
-    applyIdlePose(vrm)
+    applyIdlePose(vrm, slotIndex)
 
     // スロット0 は後方互換で currentVRM を更新
     if (slotIndex === 0) {
@@ -790,21 +790,34 @@ function findCharacterByName(name) {
 // ============================================
 // Pose
 // ============================================
-function applyIdlePose(vrm) {
+function applyIdlePose(vrm, variant = 0) {
   const humanoid = vrm.humanoid
   if (!humanoid) return
 
   const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm')
   const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm')
-
-  if (leftUpperArm) leftUpperArm.rotation.z = -Math.PI * 0.43
-  if (rightUpperArm) rightUpperArm.rotation.z = Math.PI * 0.43
-
   const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm')
   const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm')
 
-  if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.05
-  if (rightLowerArm) rightLowerArm.rotation.z = Math.PI * 0.05
+  if (variant === 0) {
+    // デフォルト: 両手を軽く下ろす
+    if (leftUpperArm) leftUpperArm.rotation.z = -Math.PI * 0.43
+    if (rightUpperArm) rightUpperArm.rotation.z = Math.PI * 0.43
+    if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.05
+    if (rightLowerArm) rightLowerArm.rotation.z = Math.PI * 0.05
+  } else {
+    // バリエーション: 片手を腰に、もう片方を軽く前に
+    if (leftUpperArm) leftUpperArm.rotation.z = -Math.PI * 0.35
+    if (rightUpperArm) rightUpperArm.rotation.z = Math.PI * 0.55
+    if (leftLowerArm) leftLowerArm.rotation.z = -Math.PI * 0.08
+    if (rightLowerArm) {
+      rightLowerArm.rotation.z = Math.PI * 0.15
+      rightLowerArm.rotation.x = -Math.PI * 0.3
+    }
+    // 軽く首をかしげる
+    const head = humanoid.getNormalizedBoneNode('head')
+    if (head) head.rotation.z = 0.03
+  }
 
   vrm.scene.updateMatrixWorld(true)
 }
@@ -3629,19 +3642,26 @@ function animate() {
   }
 
   // 全キャラクターの更新（まばたき・idle・VRM update）
-  for (const ch of characters) {
+  for (let ci = 0; ci < characters.length; ci++) {
+    const ch = characters[ci]
     if (!ch.vrm) continue
-    if (ch.vrm === currentVRM) {
+    const savedVRM = currentVRM
+    currentVRM = ch.vrm
+
+    if (ch.vrm === savedVRM) {
       // アクティブキャラ: まばたき + idle揺れ
       updateBlink(delta)
       updateIdleSway(delta)
     } else {
-      // 非アクティブキャラ: まばたきのみ
-      const savedVRM = currentVRM
-      currentVRM = ch.vrm
+      // 非アクティブキャラ: まばたき + 少しずれたidle揺れ
+      const savedElapsed = elapsedTime
+      elapsedTime += ci * 3.7  // キャラごとにタイミングずらし
       updateBlink(delta)
-      currentVRM = savedVRM
+      updateIdleSway(delta)
+      elapsedTime = savedElapsed
     }
+
+    currentVRM = savedVRM
     ch.vrm.update(delta)
     if (ch.mixer) ch.mixer.update(delta)
   }
