@@ -3879,10 +3879,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ============================================
 // File Input Handlers
 // ============================================
-document.getElementById('fileInput').addEventListener('change', (e) => {
+document.getElementById('fileInput').addEventListener('change', async (e) => {
   const file = e.target.files[0]
   if (!file) return
-  loadVRM(URL.createObjectURL(file))
+  // スロット0にも反映（後方互換 + マルチキャラ対応）
+  await loadCharacterVRM(URL.createObjectURL(file), 0)
   e.target.value = ''
 })
 
