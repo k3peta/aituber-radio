@@ -167,6 +167,8 @@ function startCompositeRender() {
   const bgLayer = document.getElementById('bg-layer')
   const jingleOverlay = document.getElementById('jingle-overlay')
   const jingleImage = document.getElementById('jingle-image')
+  const floatOverlay = document.getElementById('float-overlay')
+  const floatImage = document.getElementById('float-image')
   const subtitleBox = document.getElementById('subtitle-box')
   const subtitleTitle = document.getElementById('subtitle-title')
   const subtitleText = document.getElementById('subtitle-text')
@@ -255,8 +257,45 @@ function startCompositeRender() {
         ctx.drawImage(srcCanvas, 0, 0, W, H)
       } catch (e) { /* WebGL context lost */ }
     }
+    // 4. フロート画像（図表・スライド — 字幕の下、キャラの上）
+    if (floatOverlay && floatOverlay.classList.contains('visible') && floatImage && floatImage.complete && floatImage.naturalWidth) {
+      try {
+        const opacity = parseFloat(getComputedStyle(floatOverlay).opacity) || 1
+        ctx.save()
+        ctx.globalAlpha = opacity
+        const imgRatio = floatImage.naturalWidth / floatImage.naturalHeight
+        const maxW = W * 0.75
+        const maxH = H * 0.7
+        let drawW = maxW
+        let drawH = drawW / imgRatio
+        if (drawH > maxH) { drawH = maxH; drawW = drawH * imgRatio }
+        const drawX = (W - drawW) / 2
+        const drawY = (H - drawH) / 2
+        const pad = 16
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+        ctx.shadowBlur = 32
+        const cr = 12
+        ctx.beginPath()
+        ctx.moveTo(drawX - pad + cr, drawY - pad)
+        ctx.lineTo(drawX + drawW + pad - cr, drawY - pad)
+        ctx.quadraticCurveTo(drawX + drawW + pad, drawY - pad, drawX + drawW + pad, drawY - pad + cr)
+        ctx.lineTo(drawX + drawW + pad, drawY + drawH + pad - cr)
+        ctx.quadraticCurveTo(drawX + drawW + pad, drawY + drawH + pad, drawX + drawW + pad - cr, drawY + drawH + pad)
+        ctx.lineTo(drawX - pad + cr, drawY + drawH + pad)
+        ctx.quadraticCurveTo(drawX - pad, drawY + drawH + pad, drawX - pad, drawY + drawH + pad - cr)
+        ctx.lineTo(drawX - pad, drawY - pad + cr)
+        ctx.quadraticCurveTo(drawX - pad, drawY - pad, drawX - pad + cr, drawY - pad)
+        ctx.fill()
+        ctx.shadowBlur = 0
+        ctx.drawImage(floatImage, drawX, drawY, drawW, drawH)
+        ctx.restore()
+      } catch (e) {
+        // CORS等で描画失敗しても他レイヤーに影響しない
+      }
+    }
 
-    // 4. ジングルオーバーレイ
+    // 5. ジングルオーバーレイ
     if (jingleOverlay && jingleOverlay.classList.contains('visible')) {
       const opacity = parseFloat(getComputedStyle(jingleOverlay).opacity) || 1
       ctx.save()
