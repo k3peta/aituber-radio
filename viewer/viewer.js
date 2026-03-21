@@ -1296,7 +1296,7 @@ const stripURLs = cleanTextForSpeech
 function splitDisplaySpeech(text) {
   const match = text.match(/^(.+?)\s*\{([^}]+)\}\s*$/)
   if (match) {
-    const display = cleanTextForSpeech(match[1].trim())
+    const display = match[1].trim()
     const speech = match[2].trim()
     return { display, speech }
   }
