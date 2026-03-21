@@ -3754,23 +3754,23 @@ function animate() {
         const humanoid = ch.vrm.humanoid
         const head = humanoid?.getNormalizedBoneNode('head')
         if (head) {
-          // nodPhase: 0=待機, >0=頷き中
           if (!ch._nodPhase) ch._nodPhase = 0
           if (!ch._nodTimer) ch._nodTimer = 2 + Math.random() * 3
 
           ch._nodTimer -= delta
           if (ch._nodTimer <= 0 && ch._nodPhase === 0) {
-            ch._nodPhase = 1  // 頷き開始
-            ch._nodTimer = 0.3  // 頷きの長さ
+            ch._nodPhase = 1
+            ch._nodTimer = 0.3
           }
 
           if (ch._nodPhase === 1) {
-            // 軽く下を向く
-            head.rotation.x += Math.sin(ch._nodTimer * Math.PI / 0.3) * 0.06
+            // idle swayの上に頷きを加算（1フレーム分だけ）
+            const nodAmount = Math.sin((1 - ch._nodTimer / 0.3) * Math.PI) * 0.08
+            head.rotation.x = nodAmount  // += ではなく = で設定
             ch._nodTimer -= delta
             if (ch._nodTimer <= 0) {
               ch._nodPhase = 0
-              ch._nodTimer = 2 + Math.random() * 4  // 次の頷きまで
+              ch._nodTimer = 2 + Math.random() * 4
             }
           }
         }
