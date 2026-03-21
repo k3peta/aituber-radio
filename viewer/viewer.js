@@ -1312,6 +1312,11 @@ async function convertReadingsForTTS(lines) {
       const batchIndices = uncachedIndices.slice(b, b + batchSize)
 
       try {
+        // 外部辞書から例示を生成
+        const dictExamples = externalDictionary.length > 0
+          ? externalDictionary.map(d => `- 例: "${d.kanji}" → "${d.kana}"${d.note ? `（${d.note}）` : ''}`).join('\n')
+          : `- 例: "山道" → "やまみち"\n- 例: "家系" → "いえけい"\n- 例: "断捨離" → "だんしゃり"`
+
         const numberedLines = batch.map((t, i) => `${i + 1}. ${t}`).join('\n')
         const response = await callLLM([
           {
@@ -1322,34 +1327,7 @@ async function convertReadingsForTTS(lines) {
 【ルール】
 - 読み間違えやすい漢字のみ変換。それ以外はそのまま残す
 - 文脈から正しい読みを判断する
-- 例: "辛い料理" → "からい料理"（つらい ではなく からい）
-- 例: "今日は一日中" → "きょうはいちにちじゅう"
-- 例: "明日の朝" → "あしたの朝"（あす ではなく あした、口語的に）
-- 例: "生ビール" → "なまビール"（せい ではなく なま）
-- 例: "何人" → "なんにん"（なにじん ではない場合）
-- 例: "大人気" → "だいにんき"（おとなげ ではなく）
-- 例: "亡くなった方" → "亡くなったかた"（ほう ではなく かた、人を指す場合）
-- 例: "こちらの方が" → "こちらのほうが"（比較の場合は ほう）
-- 例: "皆さんの方" → "皆さんのかた"（人を指す場合は かた）
-- 例: "お昼時" → "おひるどき"（じ ではなく どき）
-- 例: "食事時" → "しょくじどき"（〜時 は どき と読む場合が多い）
-- 例: "笑う門には福来る" → "わらうかどにはふくきたる"（ことわざの正しい読み）
-- 例: "辛いことがあっても" → "つらいことがあっても"（からい ではなく つらい）
-- 例: "未病" → "みびょう"（みやまい ではなく みびょう）
-- 例: "車" → "くるま"（しゃ ではなく くるま、単独や一般文脈では）
-- 例: "山道" → "やまみち"（さんどう ではなく やまみち）
-- 例: "河原" → "かわら"（かわはら ではなく）
-- 例: "風呂" → "ふろ"（ふうろ ではなく）
-- 例: "一人" → "ひとり"（いちにん ではなく一般的に ひとり）
-- 例: "二人" → "ふたり"（ににん ではなく）
-- 例: "今朝" → "けさ"（こんちょう ではなく）
-- 例: "昨日" → "きのう"（さくじつ ではなく口語で きのう）
-- 例: "何処" → "どこ"（なんしょ ではなく）
-- 例: "上手" → "じょうず"（うわて ではなく一般的に）
-- 例: "下手" → "へた"（しもて ではなく一般的に）
-- 例: "家系ラーメン" → "いえけいラーメン"（かけい ではなく いえけい）
-- 例: "家系" → "いえけい"（ラーメンの文脈では いえけい）
-- 例: "断捨離" → "だんしゃり"（だんすてはなれ ではなく だんしゃり）
+${dictExamples}
 
 【特に注意: VOICEVOXが間違えやすい漢字】
 - 単独の「車」「山」「川」「道」等の一字漢字は訓読みに変換する
@@ -2296,10 +2274,7 @@ async function loadExternalTopics() {
   if (externalTopicsLoaded) return
   externalTopicsLoaded = true
   try {
-    // aituber-radio-station の freetalk-topics.json を取得
-    const urls = [
-      'https://raw.githubusercontent.com/k3peta/aituber-radio-station/main/freetalk-topics.json'
-    ]
+    const urls = ['https://raw.githubusercontent.com/k3peta/aituber-radio-station/main/freetalk-topics.json']
     for (const url of urls) {
       try {
         const res = await fetch(url, { cache: 'no-cache' })
@@ -2318,8 +2293,31 @@ async function loadExternalTopics() {
   }
 }
 
+// 外部辞書JSON読み込み（TTS読み間違い補正）
+let externalDictionary = []
+let externalDictionaryLoaded = false
+
+async function loadExternalDictionary() {
+  if (externalDictionaryLoaded) return
+  externalDictionaryLoaded = true
+  try {
+    const url = 'https://raw.githubusercontent.com/k3peta/aituber-radio-station/main/tts-dictionary.json'
+    const res = await fetch(url, { cache: 'no-cache' })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        externalDictionary = data
+        console.log(`📝 外部辞書を${data.length}エントリー読み込み`)
+      }
+    }
+  } catch (e) {
+    console.warn('外部辞書の読み込みに失敗:', e)
+  }
+}
+
 // 起動時にバックグラウンドで読み込み
 loadExternalTopics()
+loadExternalDictionary()
 
 // 話題の重み付きランダム選択（季節・時間・日付フィルタ付き）
 function pickFreeTalkTopic() {
