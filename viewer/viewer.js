@@ -3084,6 +3084,7 @@ function showFloat(imageUrl) {
   const overlay = document.getElementById('float-overlay')
   const img = document.getElementById('float-image')
   if (!overlay || !img) return
+  img.crossOrigin = 'anonymous'
   img.src = imageUrl
   img.onload = () => {
     overlay.classList.add('visible')
