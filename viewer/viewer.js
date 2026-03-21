@@ -1079,8 +1079,15 @@ async function speakPipeline(lines, defaultSpeaker = 38, onLine = null) {
   console.log(`🔧 speakPipeline: TTS check = ${ttsOk}`)
   if (!ttsOk) return false
 
-  // AI読み変換（バッチ処理 — 再生前に一括変換）
-  const ttsTexts = await convertReadingsForTTS(lines)
+  // 読み変換: speechText が明示指定されていればそれを使い、なければAI変換
+  const ttsTexts = lines.map(l => l.speechText && l.speechText !== l.text ? l.speechText : null)
+  const needsAI = ttsTexts.some(t => t === null)
+  if (needsAI) {
+    const aiTexts = await convertReadingsForTTS(lines)
+    for (let i = 0; i < ttsTexts.length; i++) {
+      if (ttsTexts[i] === null) ttsTexts[i] = aiTexts[i]
+    }
+  }
 
   // ブラウザTTS: 先読み不要、順次再生
   if (ttsEngine === 'browser') {
@@ -1221,6 +1228,22 @@ function cleanTextForSpeech(text) {
 
 // 後方互換エイリアス
 const stripURLs = cleanTextForSpeech
+
+/**
+ * テキストから表示用と発話用を分離する
+ * 書式: "表示テキスト {読みテキスト}" → { display: "表示テキスト", speech: "読みテキスト" }
+ * {読み} がなければ display = speech = cleanTextForSpeech(text)
+ */
+function splitDisplaySpeech(text) {
+  const match = text.match(/^(.+?)\s*\{([^}]+)\}\s*$/)
+  if (match) {
+    const display = cleanTextForSpeech(match[1].trim())
+    const speech = match[2].trim()
+    return { display, speech }
+  }
+  const cleaned = cleanTextForSpeech(text)
+  return { display: cleaned, speech: cleaned }
+}
 
 function parseScript(mdText) {
   const lines = mdText.split('\n')
@@ -2649,18 +2672,21 @@ async function playSetlist(setlist) {
         for (const line of seg.lines) {
           const tagMatch = line.match(/^\[(\w+),\s*([\d.]+)\]\s*(.+)$/)
           if (tagMatch) {
+            const { display, speech } = splitDisplaySpeech(tagMatch[3])
             talkScript.dialogues.push({
               emotion: tagMatch[1],
               intensity: parseFloat(tagMatch[2]),
-              text: cleanTextForSpeech(tagMatch[3])
+              text: display,
+              speechText: speech
             })
           } else {
-            const cleaned = cleanTextForSpeech(line)
-            if (cleaned) {
+            const { display, speech } = splitDisplaySpeech(line)
+            if (display) {
               talkScript.dialogues.push({
                 emotion: seg.props.emotion || 'neutral',
                 intensity: seg.props.intensity || 0.75,
-                text: cleaned,
+                text: display,
+                speechText: speech,
                 _untagged: true
               })
             }
@@ -3013,6 +3039,7 @@ async function playSetlist(setlist) {
 
   function cleanup() {
     hideSubtitle()
+    hideFloat()
     setEmotion('neutral')
     stopBGM()
     document.body.classList.remove('vertical-mode')
