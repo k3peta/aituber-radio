@@ -154,37 +154,42 @@ function startCompositeRender() {
     const floatOverlay = document.getElementById('float-overlay')
     const floatImage = document.getElementById('float-image')
     if (floatOverlay && floatOverlay.classList.contains('visible') && floatImage && floatImage.complete && floatImage.naturalWidth) {
-      const opacity = parseFloat(getComputedStyle(floatOverlay).opacity) || 1
-      ctx.save()
-      ctx.globalAlpha = opacity
-      const imgRatio = floatImage.naturalWidth / floatImage.naturalHeight
-      const maxW = W * 0.75
-      const maxH = H * 0.7
-      let drawW = maxW
-      let drawH = drawW / imgRatio
-      if (drawH > maxH) { drawH = maxH; drawW = drawH * imgRatio }
-      const drawX = (W - drawW) / 2
-      const drawY = (H - drawH) / 2
-      // 白背景カード
-      const pad = 16
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
-      ctx.shadowBlur = 32
-      ctx.beginPath()
-      const cr = 12
-      ctx.moveTo(drawX - pad + cr, drawY - pad)
-      ctx.lineTo(drawX + drawW + pad - cr, drawY - pad)
-      ctx.quadraticCurveTo(drawX + drawW + pad, drawY - pad, drawX + drawW + pad, drawY - pad + cr)
-      ctx.lineTo(drawX + drawW + pad, drawY + drawH + pad - cr)
-      ctx.quadraticCurveTo(drawX + drawW + pad, drawY + drawH + pad, drawX + drawW + pad - cr, drawY + drawH + pad)
-      ctx.lineTo(drawX - pad + cr, drawY + drawH + pad)
-      ctx.quadraticCurveTo(drawX - pad, drawY + drawH + pad, drawX - pad, drawY + drawH + pad - cr)
-      ctx.lineTo(drawX - pad, drawY - pad + cr)
-      ctx.quadraticCurveTo(drawX - pad, drawY - pad, drawX - pad + cr, drawY - pad)
-      ctx.fill()
-      ctx.shadowBlur = 0
-      ctx.drawImage(floatImage, drawX, drawY, drawW, drawH)
-      ctx.restore()
+      try {
+        const opacity = parseFloat(getComputedStyle(floatOverlay).opacity) || 1
+        ctx.save()
+        ctx.globalAlpha = opacity
+        const imgRatio = floatImage.naturalWidth / floatImage.naturalHeight
+        const maxW = W * 0.75
+        const maxH = H * 0.7
+        let drawW = maxW
+        let drawH = drawW / imgRatio
+        if (drawH > maxH) { drawH = maxH; drawW = drawH * imgRatio }
+        const drawX = (W - drawW) / 2
+        const drawY = (H - drawH) / 2
+        // 白背景カード
+        const pad = 16
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+        ctx.shadowBlur = 32
+        ctx.beginPath()
+        const cr = 12
+        ctx.moveTo(drawX - pad + cr, drawY - pad)
+        ctx.lineTo(drawX + drawW + pad - cr, drawY - pad)
+        ctx.quadraticCurveTo(drawX + drawW + pad, drawY - pad, drawX + drawW + pad, drawY - pad + cr)
+        ctx.lineTo(drawX + drawW + pad, drawY + drawH + pad - cr)
+        ctx.quadraticCurveTo(drawX + drawW + pad, drawY + drawH + pad, drawX + drawW + pad - cr, drawY + drawH + pad)
+        ctx.lineTo(drawX - pad + cr, drawY + drawH + pad)
+        ctx.quadraticCurveTo(drawX - pad, drawY + drawH + pad, drawX - pad, drawY + drawH + pad - cr)
+        ctx.lineTo(drawX - pad, drawY - pad + cr)
+        ctx.quadraticCurveTo(drawX - pad, drawY - pad, drawX - pad + cr, drawY - pad)
+        ctx.fill()
+        ctx.shadowBlur = 0
+        ctx.drawImage(floatImage, drawX, drawY, drawW, drawH)
+        ctx.restore()
+      } catch (e) {
+        ctx.restore()
+        console.warn('Float image draw failed (CORS?):', e.message)
+      }
     }
 
     // 5. ジングルオーバーレイ
