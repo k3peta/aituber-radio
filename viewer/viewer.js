@@ -2702,12 +2702,13 @@ async function playSetlist(setlist) {
           } else {
             const { display, speech } = splitDisplaySpeech(line)
             if (display) {
+              const hasExplicitReading = (speech !== display)
               talkScript.dialogues.push({
                 emotion: seg.props.emotion || 'neutral',
                 intensity: seg.props.intensity || 0.75,
                 text: display,
                 speechText: speech,
-                _untagged: true
+                _untagged: !hasExplicitReading
               })
             }
           }
