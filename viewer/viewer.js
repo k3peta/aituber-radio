@@ -3985,7 +3985,10 @@ async function playSetlist(setlist) {
           await speak('ニュースの取得に失敗しました', speaker)
           break
         }
-        const newsPrompt = `あなたはラジオパーソナリティ。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
+        const now = new Date()
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+        const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${weekdays[now.getDay()]}曜日）`
+        const newsPrompt = `あなたはラジオパーソナリティ。今日は${dateStr}です。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
         const newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
         if (stopRequested) break
         const newsDialogues = newsScript ? parseScript(`---\n---\n${newsScript}`).dialogues : []
@@ -4011,7 +4014,10 @@ async function playSetlist(setlist) {
           break
         }
         const weatherData = weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')
-        const weatherPrompt = `あなたはラジオの天気予報担当。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n\n${weatherData}`
+        const wNow = new Date()
+        const wWeekdays = ['日', '月', '火', '水', '木', '金', '土']
+        const wDateStr = `${wNow.getFullYear()}年${wNow.getMonth() + 1}月${wNow.getDate()}日（${wWeekdays[wNow.getDay()]}曜日）`
+        const weatherPrompt = `あなたはラジオの天気予報担当。今日は${wDateStr}です。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n\n${weatherData}`
         const weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
         if (stopRequested) break
         const weatherDialogues = weatherScript ? parseScript(`---\n---\n${weatherScript}`).dialogues : []
@@ -4036,7 +4042,10 @@ async function playSetlist(setlist) {
           await speak('今日は何の日の情報が取得できませんでした', speaker)
           break
         }
-        const todayPrompt = `あなたはラジオパーソナリティ。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n\n${history.join('\n')}`
+        const tNow = new Date()
+        const tWeekdays = ['日', '月', '火', '水', '木', '金', '土']
+        const tDateStr = `${tNow.getFullYear()}年${tNow.getMonth() + 1}月${tNow.getDate()}日（${tWeekdays[tNow.getDay()]}曜日）`
+        const todayPrompt = `あなたはラジオパーソナリティ。今日は${tDateStr}です。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n\n${history.join('\n')}`
         const todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
         if (stopRequested) break
         const todayDialogues = todayScript ? parseScript(`---\n---\n${todayScript}`).dialogues : []
