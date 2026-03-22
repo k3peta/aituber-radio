@@ -1515,7 +1515,9 @@ function showSubtitle(text, title = '') {
   } else {
     subtitleTitle.style.display = 'none'
   }
-  subtitleText.textContent = text
+  // ルビ記法 {表記|よみ} を <ruby> タグに変換し、改行を <br> に
+  const htmlText = text.replace(/\{([^|]+)\|([^}]+)\}/g, '<ruby>$1<rt>$2</rt></ruby>')
+  subtitleText.innerHTML = htmlText.replace(/\n/g, '<br>')
   subtitleBox.classList.add('visible')
 }
 
@@ -1578,10 +1580,13 @@ async function synthesize(text, speakerId = 38) {
 
   let wavBuffer
 
+  // ルビ記法 {表記|よみ} から「よみ」部分だけを音声合成エンジンに渡す
+  const speakText = text.replace(/\{([^|]+)\|([^}]+)\}/g, '$2')
+
   if (ttsEngine === 'sbv2') {
     // Style-Bert-VITS2: GET /voice で直接WAV取得
     const params = new URLSearchParams({
-      text: text,
+      text: speakText,
       model_id: String(ttsModelId),
       speaker_id: String(speakerId),
       length: String(1.0 / currentSpeedScale),  // VOICEVOXのspeedScaleの逆数
@@ -1595,7 +1600,7 @@ async function synthesize(text, speakerId = 38) {
   } else {
     // VOICEVOX: audio_query → synthesis
     const qRes = await fetch(
-      `http://localhost:${ttsPort}/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
+      `http://localhost:${ttsPort}/audio_query?text=${encodeURIComponent(speakText)}&speaker=${speakerId}`,
       { method: 'POST' }
     )
     if (!qRes.ok) throw new Error(`音声クエリ失敗 (${qRes.status})`)
