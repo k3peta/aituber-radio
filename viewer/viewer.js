@@ -4274,7 +4274,21 @@ function setRandomBackground() {
       console.log('🎲 ランダム背景セット:', img.src)
       // Picsum の最終URL から ID を抽出 (例: https://fastly.picsum.photos/id/237/1920/1080.jpg?...)
       const idMatch = img.src.match(/\/id\/(\d+)\//)
-      resolve({ id: idMatch ? idMatch[1] : null, finalUrl: img.src })
+      if (idMatch) {
+        console.log('🎲 Picsum ID (from img.src):', idMatch[1])
+        resolve({ id: idMatch[1], finalUrl: img.src })
+      } else {
+        // img.src がリダイレクト前URLのまま → fetch で最終URLを取得
+        console.log('🎲 img.src にIDなし、fetch でリダイレクト先を確認...')
+        fetch(url, { method: 'HEAD', redirect: 'follow' })
+          .then(res => {
+            const finalUrl = res.url
+            console.log('🎲 fetch final URL:', finalUrl)
+            const fetchIdMatch = finalUrl.match(/\/id\/(\d+)\//)
+            resolve({ id: fetchIdMatch ? fetchIdMatch[1] : null, finalUrl })
+          })
+          .catch(() => resolve({ id: null, finalUrl: img.src }))
+      }
     }
     img.onerror = () => {
       status.textContent = '❌ 背景の取得に失敗しました'
