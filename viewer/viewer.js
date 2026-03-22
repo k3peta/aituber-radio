@@ -1360,6 +1360,16 @@ function trackSpeakerUsage(speakerId) {
 
 function clearSpeakerUsage() {
   usedSpeakerIds.clear()
+  usedPhotoCredits.length = 0
+}
+
+// 再生中に使用した写真クレジットを収集（CC-BY表記用）
+const usedPhotoCredits = []
+
+function trackPhotoCredit(author, source = 'Unsplash') {
+  if (author && !usedPhotoCredits.some(c => c.author === author)) {
+    usedPhotoCredits.push({ author, source })
+  }
 }
 
 // VOICEVOX speakerId → キャラ名マッピング（主要キャラ）
@@ -1414,6 +1424,14 @@ function showCredits(durationMs = 8000, customCredit = '') {
       lines.push('ブラウザTTS')
     }
     creditText = lines.join('\n')
+
+    // 写真クレジット（CC-BY: Unsplash / Picsum Photos）
+    if (usedPhotoCredits.length > 0) {
+      creditText += '\n'
+      for (const credit of usedPhotoCredits) {
+        creditText += `\n📷 ${credit.author} (${credit.source})`
+      }
+    }
   }
 
   currentCreditText = creditText
@@ -3497,7 +3515,7 @@ function generateFallbackReply(comment) {
 // ============================================
 function isSetlist(text) {
   // [type: talk] や [type: script] などがあればセットリスト
-  return /\[type:\s*(talk|script|jingle|freetalk|audio|auto-news|auto-weather|auto-today)\]/i.test(text)
+  return /\[type:\s*(talk|script|jingle|freetalk|audio|auto-news|auto-weather|auto-today|auto-scenery)\]/i.test(text)
 }
 
 function parseSetlist(mdText) {
@@ -3998,6 +4016,24 @@ async function playSetlist(setlist) {
       }
 
       // === 動的コンテンツセグメント ===
+      // 曜日ハルシネーション対策: LLM出力中の間違った曜日を正しい曜日に置換
+      function fixWeekdayInText(text, correctWeekday) {
+        const allWeekdays = ['日', '月', '火', '水', '木', '金', '土']
+        const wrongDays = allWeekdays.filter(d => d !== correctWeekday)
+        // 「X曜日」「X曜」パターンで誤った曜日を正しい曜日に置換
+        for (const wrong of wrongDays) {
+          text = text.replace(new RegExp(wrong + '曜日', 'g'), correctWeekday + '曜日')
+          text = text.replace(new RegExp(wrong + '曜', 'g'), correctWeekday + '曜')
+        }
+        return text
+      }
+      function getTodayDateInfo() {
+        const now = new Date()
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+        const weekday = weekdays[now.getDay()]
+        const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${weekday}曜日）`
+        return { dateStr, weekday }
+      }
       case 'auto-news': {
         status.textContent = '📰 ニュース取得中...'
         const news = await fetchNewsForShow()
@@ -4007,12 +4043,11 @@ async function playSetlist(setlist) {
           await speak('ニュースの取得に失敗しました', speaker)
           break
         }
-        const now = new Date()
-        const weekdays = ['日', '月', '火', '水', '木', '金', '土']
-        const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${weekdays[now.getDay()]}曜日）`
-        const newsPrompt = `あなたはラジオパーソナリティ。今日は${dateStr}です。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
-        const newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
+        const { dateStr, weekday } = getTodayDateInfo()
+        const newsPrompt = `あなたはラジオパーソナリティ。今日は${dateStr}です。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n※重要: 曜日は必ず「${weekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
+        let newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
         if (stopRequested) break
+        if (newsScript) newsScript = fixWeekdayInText(newsScript, weekday)
         const newsDialogues = newsScript ? parseScript(`---\n---\n${newsScript}`).dialogues : []
         if (newsDialogues.length > 0) {
           status.textContent = `📰 ニュース（${newsDialogues.length}行）`
@@ -4036,12 +4071,11 @@ async function playSetlist(setlist) {
           break
         }
         const weatherData = weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')
-        const wNow = new Date()
-        const wWeekdays = ['日', '月', '火', '水', '木', '金', '土']
-        const wDateStr = `${wNow.getFullYear()}年${wNow.getMonth() + 1}月${wNow.getDate()}日（${wWeekdays[wNow.getDay()]}曜日）`
-        const weatherPrompt = `あなたはラジオの天気予報担当。今日は${wDateStr}です。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n\n${weatherData}`
-        const weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
+        const { dateStr: wDateStr, weekday: wWeekday } = getTodayDateInfo()
+        const weatherPrompt = `あなたはラジオの天気予報担当。今日は${wDateStr}です。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n※重要: 曜日は必ず「${wWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${weatherData}`
+        let weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
         if (stopRequested) break
+        if (weatherScript) weatherScript = fixWeekdayInText(weatherScript, wWeekday)
         const weatherDialogues = weatherScript ? parseScript(`---\n---\n${weatherScript}`).dialogues : []
         if (weatherDialogues.length > 0) {
           status.textContent = `🌤️ 天気予報（${weatherDialogues.length}行）`
@@ -4064,12 +4098,11 @@ async function playSetlist(setlist) {
           await speak('今日は何の日の情報が取得できませんでした', speaker)
           break
         }
-        const tNow = new Date()
-        const tWeekdays = ['日', '月', '火', '水', '木', '金', '土']
-        const tDateStr = `${tNow.getFullYear()}年${tNow.getMonth() + 1}月${tNow.getDate()}日（${tWeekdays[tNow.getDay()]}曜日）`
-        const todayPrompt = `あなたはラジオパーソナリティ。今日は${tDateStr}です。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n\n${history.join('\n')}`
-        const todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
+        const { dateStr: tDateStr, weekday: tWeekday } = getTodayDateInfo()
+        const todayPrompt = `あなたはラジオパーソナリティ。今日は${tDateStr}です。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n※重要: 曜日は必ず「${tWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${history.join('\n')}`
+        let todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
         if (stopRequested) break
+        if (todayScript) todayScript = fixWeekdayInText(todayScript, tWeekday)
         const todayDialogues = todayScript ? parseScript(`---\n---\n${todayScript}`).dialogues : []
         if (todayDialogues.length > 0) {
           status.textContent = `📅 今日は何の日（${todayDialogues.length}行）`
@@ -4078,6 +4111,50 @@ async function playSetlist(setlist) {
             showSubtitle(line.text, `📅 今日は何の日（${i + 1}/${todayDialogues.length}）`)
           })
           if (todayStopped) { cleanup(); return }
+        }
+        hideSubtitle()
+        break
+      }
+
+      case 'auto-scenery': {
+        // ランダム風景背景 + AI による風景トーク
+        status.textContent = '🎲 ランダム風景を取得中...'
+        const bgResult = await setRandomBackground()
+        if (stopRequested) break
+        if (!bgResult) {
+          showSubtitle('風景画像の取得に失敗しました', '🏞️')
+          await speak('風景画像の取得に失敗しました', speaker)
+          break
+        }
+
+        // Picsum API からメタ情報を取得
+        const photoInfo = await fetchPicsumInfo(bgResult.id)
+        const photographer = photoInfo ? photoInfo.author : '不明'
+        const photoUrl = photoInfo ? photoInfo.url : ''
+
+        // クレジット表示用に写真情報を記録（CC-BY: 撮影者 / Unsplash）
+        if (photoInfo) trackPhotoCredit(photographer, 'Unsplash / Picsum Photos')
+
+        const { dateStr: sDateStr, weekday: sWeekday } = getTodayDateInfo()
+        const sceneryPrompt = `あなたはラジオパーソナリティ。今日は${sDateStr}です。
+背景にランダムな風景写真が表示されています。
+写真の情報: 撮影者「${photographer}」${photoUrl ? '（出典: Unsplash）' : ''}
+
+この写真を見ているリスナーに向けて、風景の印象や季節感、旅の気分を語ってください。
+写真の具体的な内容は分からないので、「どんな風景が映ってるかな？」「みなさんにはどう見えますか？」のように、リスナーと一緒に楽しむスタイルで。
+撮影者の名前にも触れてください。3〜5文で。1行1文で。
+※重要: 曜日は必ず「${sWeekday}曜日」を使ってください。`
+        let sceneryScript = await callLLM([{ role: 'user', content: sceneryPrompt }], { maxTokens: 1000, temperature: 0.9 })
+        if (stopRequested) break
+        if (sceneryScript) sceneryScript = fixWeekdayInText(sceneryScript, sWeekday)
+        const sceneryDialogues = sceneryScript ? parseScript(`---\n---\n${sceneryScript}`).dialogues : []
+        if (sceneryDialogues.length > 0) {
+          status.textContent = `🏞️ 風景トーク（${sceneryDialogues.length}行）`
+          const sceneryStopped = await speakPipeline(sceneryDialogues, speaker, (line, i) => {
+            setEmotion(line.emotion, line.intensity)
+            showSubtitle(line.text, `🏞️ 今日の風景（📷 ${photographer}）`)
+          })
+          if (sceneryStopped) { cleanup(); return }
         }
         hideSubtitle()
         break
@@ -4152,6 +4229,7 @@ function changeBackground(imageUrl) {
 
 /**
  * Picsum Photos (CC-0) からランダム背景を取得してセット
+ * @returns {Promise<{id: string, finalUrl: string}|null>} 取得した画像の Picsum ID と最終URL
  */
 function setRandomBackground() {
   const cacheBuster = Date.now()
@@ -4159,19 +4237,42 @@ function setRandomBackground() {
   console.log('🎲 ランダム背景を取得中...')
   status.textContent = '🎲 ランダム背景を取得中...'
 
-  // Picsum はリダイレクトで実画像URLを返すので、img要素で読み込む
-  const img = new Image()
-  img.crossOrigin = 'anonymous'
-  img.onload = () => {
-    document.getElementById('bg-layer').style.backgroundImage = `url('${img.src}')`
-    status.textContent = '🎲 背景を変更しました'
-    console.log('🎲 ランダム背景セット:', img.src)
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      document.getElementById('bg-layer').style.backgroundImage = `url('${img.src}')`
+      status.textContent = '🎲 背景を変更しました'
+      console.log('🎲 ランダム背景セット:', img.src)
+      // Picsum の最終URL から ID を抽出 (例: https://fastly.picsum.photos/id/237/1920/1080.jpg?...)
+      const idMatch = img.src.match(/\/id\/(\d+)\//)
+      resolve({ id: idMatch ? idMatch[1] : null, finalUrl: img.src })
+    }
+    img.onerror = () => {
+      status.textContent = '❌ 背景の取得に失敗しました'
+      console.warn('🎲 ランダム背景の取得失敗')
+      resolve(null)
+    }
+    img.src = url
+  })
+}
+
+/**
+ * Picsum Photos API から画像メタ情報を取得
+ * @param {string} id - Picsum 画像 ID
+ * @returns {Promise<{author: string, url: string, width: number, height: number}|null>}
+ */
+async function fetchPicsumInfo(id) {
+  if (!id) return null
+  try {
+    const res = await fetch(`https://picsum.photos/id/${id}/info`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return { author: data.author, url: data.url, width: data.width, height: data.height }
+  } catch (e) {
+    console.warn('📷 Picsum info取得失敗:', e)
+    return null
   }
-  img.onerror = () => {
-    status.textContent = '❌ 背景の取得に失敗しました'
-    console.warn('🎲 ランダム背景の取得失敗')
-  }
-  img.src = url
 }
 
 /**

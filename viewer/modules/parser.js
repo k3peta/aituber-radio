@@ -24,7 +24,7 @@ export function cleanTextForSpeech(text) {
  * テキストがセットリスト形式かどうか判定
  */
 export function isSetlist(text) {
-  return /\[type:\s*(talk|script|jingle|freetalk|audio|auto-news|auto-weather|auto-today)\]/i.test(text)
+  return /\[type:\s*(talk|script|jingle|freetalk|audio|auto-news|auto-weather|auto-today|auto-scenery)\]/i.test(text)
 }
 
 /**
