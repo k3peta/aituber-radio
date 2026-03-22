@@ -856,6 +856,22 @@ const GESTURE_POSES = {
         leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
         rightLowerArm: { x: -2.0, y: 0, z: Math.PI * 0.05 },
         spine:         { x: -0.03, y: 0, z: 0.03 },
+        // 右手を握る
+        rightThumbProximal:      { x: 0, y: 0, z: 0.3 },
+        rightThumbIntermediate:  { x: 0, y: 0, z: 0.3 },
+        rightThumbDistal:        { x: 0, y: 0, z: 0.2 },
+        rightIndexProximal:      { x: 0, y: 0, z: 0.7 },
+        rightIndexIntermediate:  { x: 0, y: 0, z: 0.7 },
+        rightIndexDistal:        { x: 0, y: 0, z: 0.5 },
+        rightMiddleProximal:     { x: 0, y: 0, z: 0.7 },
+        rightMiddleIntermediate: { x: 0, y: 0, z: 0.7 },
+        rightMiddleDistal:       { x: 0, y: 0, z: 0.5 },
+        rightRingProximal:       { x: 0, y: 0, z: 0.7 },
+        rightRingIntermediate:   { x: 0, y: 0, z: 0.7 },
+        rightRingDistal:         { x: 0, y: 0, z: 0.5 },
+        rightLittleProximal:     { x: 0, y: 0, z: 0.7 },
+        rightLittleIntermediate: { x: 0, y: 0, z: 0.7 },
+        rightLittleDistal:       { x: 0, y: 0, z: 0.5 },
       }
     },
     { // ③ 両手を胸の前で小さくパチパチ風
