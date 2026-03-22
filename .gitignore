@@ -2,7 +2,6 @@
 node_modules/
 
 # Build output (npm run build で再生成可能)
-viewer/viewer.bundle.js
 
 # OS files
 .DS_Store
