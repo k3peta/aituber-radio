@@ -894,8 +894,8 @@ const GESTURE_POSES = {
         spine:         { x: 0, y: 0, z: -0.05 },
       }
     },
-    { // ⑤ ワンポイント（右手の人差し指を立てる）
-      label: 'ワンポイント',
+    { // ⑤ バイバイ
+      label: 'バイバイ',
       bones: {
         spine               : { x: 0.1, y: 0, z: 0 },
         chest               : { x: 0.02, y: 0, z: 0 },
