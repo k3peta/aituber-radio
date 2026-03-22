@@ -3758,6 +3758,25 @@ async function playSetlist(setlist) {
       await stopBGM()
     }
 
+    // === 曜日ハルシネーション対策ヘルパー ===
+    // LLM出力中の間違った曜日を正しい曜日に置換
+    function fixWeekdayInText(text, correctWeekday) {
+      const allWeekdays = ['日', '月', '火', '水', '木', '金', '土']
+      const wrongDays = allWeekdays.filter(d => d !== correctWeekday)
+      for (const wrong of wrongDays) {
+        text = text.replace(new RegExp(wrong + '曜日', 'g'), correctWeekday + '曜日')
+        text = text.replace(new RegExp(wrong + '曜', 'g'), correctWeekday + '曜')
+      }
+      return text
+    }
+    function getTodayDateInfo() {
+      const now = new Date()
+      const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+      const weekday = weekdays[now.getDay()]
+      const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${weekday}曜日）`
+      return { dateStr, weekday }
+    }
+
     switch (seg.type) {
       case 'talk': {
         // 表情設定
@@ -4031,25 +4050,6 @@ async function playSetlist(setlist) {
         break;
       }
 
-      // === 動的コンテンツセグメント ===
-      // 曜日ハルシネーション対策: LLM出力中の間違った曜日を正しい曜日に置換
-      function fixWeekdayInText(text, correctWeekday) {
-        const allWeekdays = ['日', '月', '火', '水', '木', '金', '土']
-        const wrongDays = allWeekdays.filter(d => d !== correctWeekday)
-        // 「X曜日」「X曜」パターンで誤った曜日を正しい曜日に置換
-        for (const wrong of wrongDays) {
-          text = text.replace(new RegExp(wrong + '曜日', 'g'), correctWeekday + '曜日')
-          text = text.replace(new RegExp(wrong + '曜', 'g'), correctWeekday + '曜')
-        }
-        return text
-      }
-      function getTodayDateInfo() {
-        const now = new Date()
-        const weekdays = ['日', '月', '火', '水', '木', '金', '土']
-        const weekday = weekdays[now.getDay()]
-        const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${weekday}曜日）`
-        return { dateStr, weekday }
-      }
       case 'auto-news': {
         status.textContent = '📰 ニュース取得中...'
         const news = await fetchNewsForShow()
