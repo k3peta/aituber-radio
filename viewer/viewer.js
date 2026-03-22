@@ -1352,24 +1352,24 @@ let currentCreditText = ''
 // 再生中に使用したspeakerIdを収集（クレジット漏れ防止）
 const usedSpeakerIds = new Set()
 
+// 再生中に使用した写真クレジットを収集（CC-BY表記用）
+const usedPhotoCredits = []
+
 function trackSpeakerUsage(speakerId) {
   if (speakerId !== undefined && speakerId !== null) {
     usedSpeakerIds.add(Number(speakerId))
   }
 }
 
-function clearSpeakerUsage() {
-  usedSpeakerIds.clear()
-  usedPhotoCredits.length = 0
-}
-
-// 再生中に使用した写真クレジットを収集（CC-BY表記用）
-const usedPhotoCredits = []
-
 function trackPhotoCredit(author, source = 'Unsplash') {
   if (author && !usedPhotoCredits.some(c => c.author === author)) {
     usedPhotoCredits.push({ author, source })
   }
+}
+
+function clearSpeakerUsage() {
+  usedSpeakerIds.clear()
+  usedPhotoCredits.length = 0
 }
 
 // VOICEVOX speakerId → キャラ名マッピング（主要キャラ）
