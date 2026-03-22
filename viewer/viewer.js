@@ -838,14 +838,14 @@ let gestureSubdued = false
 // 各感情に複数バリエーション。bone名 → { x, y, z } の回転値(ラジアン)
 const GESTURE_POSES = {
   happy: [
-    { // ① 両腕を軽く上げて万歳（控えめ）
+    { // ① 両腕を真上に上げて万歳！
       label: '万歳',
       bones: {
-        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.20 },
-        rightUpperArm: { x: 0, y: 0, z: Math.PI * 0.20 },
-        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.25 },
-        rightLowerArm: { x: 0, y: 0, z: Math.PI * 0.25 },
-        spine:         { x: -0.03, y: 0, z: 0 },
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.75 },
+        rightUpperArm: { x: 0, y: 0, z: Math.PI * 0.75 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: 0, y: 0, z: Math.PI * 0.05 },
+        spine:         { x: -0.05, y: 0, z: 0 },
       }
     },
     { // ② 右手ガッツポーズ
