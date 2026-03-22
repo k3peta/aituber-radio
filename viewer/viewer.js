@@ -389,7 +389,7 @@ function startCompositeRender() {
     }
 
     // 6. クレジットオーバーレイ（Canvas録画用）
-    if (creditOverlay && creditOverlay.classList.contains('visible') && currentCreditText) {
+    if (ctx && creditOverlay && creditOverlay.classList.contains('visible') && currentCreditText) {
       const creditOpacity = parseFloat(window.getComputedStyle(creditOverlay).opacity) || 0
       if (creditOpacity > 0) {
         ctx.save()
