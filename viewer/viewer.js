@@ -827,10 +827,327 @@ function findCharacterByName(name) {
   // 部分一致（名前が含まれている、または含んでいる）
   return characters.findIndex(c => c.name && (c.name.includes(name) || name.includes(c.name)))
 }
+// ============================================
+// Pose & Gesture System
+// ============================================
 
-// ============================================
-// Pose
-// ============================================
+// 控えめモード: ポーズアニメーションを抑制（ニュース等向け）
+let gestureSubdued = false
+
+// ジェスチャーポーズ定義
+// 各感情に複数バリエーション。bone名 → { x, y, z } の回転値(ラジアン)
+const GESTURE_POSES = {
+  happy: [
+    { // ① 両腕を軽く上げて万歳（控えめ）
+      label: '万歳',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.20 },
+        rightUpperArm: { x: 0, y: 0, z: Math.PI * 0.20 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.25 },
+        rightLowerArm: { x: 0, y: 0, z: Math.PI * 0.25 },
+        spine:         { x: -0.03, y: 0, z: 0 },
+      }
+    },
+    { // ② 右手ガッツポーズ
+      label: 'ガッツポーズ',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.40 },
+        rightUpperArm: { x: 0, y: -0.3, z: Math.PI * 0.08 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: -1.4, y: 0, z: Math.PI * 0.1 },
+        spine:         { x: -0.02, y: 0, z: 0.02 },
+      }
+    },
+    { // ③ 両手を胸の前で小さくパチパチ風
+      label: '拍手',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0.6, z: -Math.PI * 0.30 },
+        rightUpperArm: { x: 0, y: -0.6, z: Math.PI * 0.30 },
+        leftLowerArm:  { x: -1.2, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: -1.2, y: 0, z: Math.PI * 0.05 },
+        spine:         { x: -0.02, y: 0, z: 0 },
+      }
+    }
+  ],
+  surprised: [
+    { // ① 両手を口元に
+      label: '口元に手',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0.8, z: -Math.PI * 0.22 },
+        rightUpperArm: { x: 0, y: -0.8, z: Math.PI * 0.22 },
+        leftLowerArm:  { x: -1.6, y: 0, z: 0 },
+        rightLowerArm: { x: -1.6, y: 0, z: 0 },
+        spine:         { x: -0.04, y: 0, z: 0 },
+        head:          { x: -0.05, y: 0, z: 0 },
+      }
+    },
+    { // ② 片手を頬に当てる
+      label: '頬に手',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.40 },
+        rightUpperArm: { x: 0, y: -0.7, z: Math.PI * 0.15 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: -1.5, y: 0.2, z: 0 },
+        spine:         { x: -0.03, y: 0, z: 0 },
+        head:          { x: 0, y: 0, z: 0.06 },
+      }
+    },
+    { // ③ 両手を前に出してびっくり
+      label: 'びっくり',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0.4, z: -Math.PI * 0.25 },
+        rightUpperArm: { x: 0, y: -0.4, z: Math.PI * 0.25 },
+        leftLowerArm:  { x: -0.8, y: 0, z: -0.2 },
+        rightLowerArm: { x: -0.8, y: 0, z: 0.2 },
+        spine:         { x: -0.06, y: 0, z: 0 },
+        head:          { x: -0.04, y: 0, z: 0 },
+      }
+    }
+  ],
+  sad: [
+    { // ① うつむいて両腕をだらんと下ろす
+      label: 'うつむき',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.48 },
+        rightUpperArm: { x: 0, y: 0, z: Math.PI * 0.48 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.02 },
+        rightLowerArm: { x: 0, y: 0, z: Math.PI * 0.02 },
+        spine:         { x: 0.05, y: 0, z: 0 },
+        head:          { x: 0.08, y: 0, z: 0 },
+      }
+    },
+    { // ② 片手を胸に当てる
+      label: '胸に手',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.43 },
+        rightUpperArm: { x: 0, y: -0.5, z: Math.PI * 0.28 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: -1.3, y: 0, z: 0 },
+        spine:         { x: 0.03, y: 0, z: 0 },
+        head:          { x: 0.06, y: 0, z: -0.03 },
+      }
+    },
+    { // ③ 両手を前で組む
+      label: '手を組む',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0.3, z: -Math.PI * 0.35 },
+        rightUpperArm: { x: 0, y: -0.3, z: Math.PI * 0.35 },
+        leftLowerArm:  { x: -1.0, y: 0, z: -0.1 },
+        rightLowerArm: { x: -1.0, y: 0, z: 0.1 },
+        spine:         { x: 0.04, y: 0, z: 0 },
+        head:          { x: 0.05, y: 0, z: 0 },
+      }
+    }
+  ],
+  angry: [
+    { // ① 腕組み
+      label: '腕組み',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0.6, z: -Math.PI * 0.30 },
+        rightUpperArm: { x: 0, y: -0.6, z: Math.PI * 0.30 },
+        leftLowerArm:  { x: -1.5, y: 0, z: 0 },
+        rightLowerArm: { x: -1.5, y: 0, z: 0 },
+        spine:         { x: 0.03, y: 0, z: 0 },
+        head:          { x: 0.03, y: 0, z: 0 },
+      }
+    },
+    { // ② 片手を前に突き出して否定
+      label: '否定',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.40 },
+        rightUpperArm: { x: -0.2, y: -0.3, z: Math.PI * 0.15 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: -0.5, y: 0, z: 0.1 },
+        spine:         { x: 0.02, y: 0, z: 0.02 },
+        head:          { x: 0, y: 0.05, z: 0 },
+      }
+    },
+    { // ③ 両手を腰に当てる（仁王立ち）
+      label: '仁王立ち',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0.3, z: -Math.PI * 0.32 },
+        rightUpperArm: { x: 0, y: -0.3, z: Math.PI * 0.32 },
+        leftLowerArm:  { x: -0.8, y: -0.3, z: -0.3 },
+        rightLowerArm: { x: -0.8, y: 0.3, z: 0.3 },
+        spine:         { x: 0.02, y: 0, z: 0 },
+        head:          { x: 0.02, y: 0, z: 0 },
+      }
+    }
+  ],
+  relaxed: [
+    { // ① 手を後ろで組む
+      label: '後ろ手',
+      bones: {
+        leftUpperArm:  { x: 0, y: -0.3, z: -Math.PI * 0.48 },
+        rightUpperArm: { x: 0, y: 0.3, z: Math.PI * 0.48 },
+        leftLowerArm:  { x: 0.4, y: 0, z: -0.3 },
+        rightLowerArm: { x: 0.4, y: 0, z: 0.3 },
+        spine:         { x: -0.02, y: 0, z: 0 },
+        head:          { x: -0.02, y: 0, z: 0.03 },
+      }
+    },
+    { // ② 片手を頬に添えてリラックス
+      label: '頬杖',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.40 },
+        rightUpperArm: { x: 0, y: -0.6, z: Math.PI * 0.18 },
+        leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+        rightLowerArm: { x: -1.4, y: 0.3, z: 0 },
+        spine:         { x: 0, y: 0, z: 0 },
+        head:          { x: 0, y: 0, z: 0.06 },
+      }
+    },
+    { // ③ 自然に下ろす（デフォルトよりリラックス）
+      label: 'リラックス立ち',
+      bones: {
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.45 },
+        rightUpperArm: { x: 0, y: 0, z: Math.PI * 0.45 },
+        leftLowerArm:  { x: -0.1, y: 0, z: -Math.PI * 0.02 },
+        rightLowerArm: { x: -0.1, y: 0, z: Math.PI * 0.02 },
+        spine:         { x: -0.01, y: 0, z: 0.01 },
+        head:          { x: -0.02, y: 0, z: 0.04 },
+      }
+    }
+  ]
+}
+
+// アイドルポーズ（neutral時のターゲット）
+const IDLE_POSE = {
+  leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.43 },
+  rightUpperArm: { x: 0, y: 0, z: Math.PI * 0.43 },
+  leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
+  rightLowerArm: { x: 0, y: 0, z: Math.PI * 0.05 },
+  spine:         { x: 0, y: 0, z: 0 },
+  head:          { x: 0, y: 0, z: 0 },
+}
+
+// ジェスチャー補間ステート（キャラごと）
+// { targetPose: {...}, currentPose: {...}, transitionSpeed: 0.05, active: false }
+function initGestureState() {
+  return {
+    targetPose: deepClonePose(IDLE_POSE),
+    currentPose: deepClonePose(IDLE_POSE),
+    transitionSpeed: 3.0,  // 秒あたりの補間速度（大きいほど速い）
+    active: false,
+    lastEmotion: 'neutral',
+    poseTimer: 0,  // ポーズ保持時間
+  }
+}
+
+/**
+ * 感情に応じたジェスチャーポーズをセット
+ */
+function setGesturePose(charIndex, emotion, intensity = 1) {
+  if (gestureSubdued) return
+  const ch = characters[charIndex]
+  if (!ch || !ch.vrm) return
+  if (!ch._gesture) ch._gesture = initGestureState()
+
+  const g = ch._gesture
+  if (emotion === 'neutral' || !GESTURE_POSES[emotion]) {
+    // ニュートラル → アイドルに戻す
+    g.targetPose = deepClonePose(IDLE_POSE)
+    g.active = true
+    g.lastEmotion = 'neutral'
+    g.poseTimer = 0
+    return
+  }
+
+  // 同じ感情でも前回と違うバリエーションを選ぶ
+  const variants = GESTURE_POSES[emotion]
+  let variantIndex = Math.floor(Math.random() * variants.length)
+  const chosen = variants[variantIndex]
+
+  // ターゲットポーズをセット（intensityでスケーリング）
+  const scaled = {}
+  for (const [bone, rot] of Object.entries(chosen.bones)) {
+    const idle = IDLE_POSE[bone] || { x: 0, y: 0, z: 0 }
+    scaled[bone] = {
+      x: idle.x + (rot.x - idle.x) * intensity,
+      y: idle.y + (rot.y - idle.y) * intensity,
+      z: idle.z + (rot.z - idle.z) * intensity,
+    }
+  }
+  // アイドルポーズにないボーンも補完
+  for (const bone of Object.keys(IDLE_POSE)) {
+    if (!scaled[bone]) scaled[bone] = { ...IDLE_POSE[bone] }
+  }
+
+  g.targetPose = scaled
+  g.active = true
+  g.lastEmotion = emotion
+  g.poseTimer = emotion === 'happy' ? 2.0 : 1.5  // ポーズ保持時間
+  console.log(`🎭 Gesture: ${emotion} → ${chosen.label}`)
+}
+
+/**
+ * ジェスチャーのボーン補間（毎フレーム呼ぶ）
+ */
+function updateGesture(ch, delta) {
+  if (!ch._gesture) ch._gesture = initGestureState()
+  const g = ch._gesture
+  if (!g.active) return
+
+  const humanoid = ch.vrm.humanoid
+  if (!humanoid) return
+
+  const speed = g.transitionSpeed * delta
+  let allDone = true
+
+  for (const boneName of Object.keys(IDLE_POSE)) {
+    const bone = humanoid.getNormalizedBoneNode(boneName)
+    if (!bone) continue
+
+    const target = g.targetPose[boneName] || IDLE_POSE[boneName]
+    if (!g.currentPose[boneName]) g.currentPose[boneName] = { x: 0, y: 0, z: 0 }
+    const cur = g.currentPose[boneName]
+
+    // lerp
+    cur.x = lerpAngle(cur.x, target.x, speed)
+    cur.y = lerpAngle(cur.y, target.y, speed)
+    cur.z = lerpAngle(cur.z, target.z, speed)
+
+    // この行のボーンにidleSwayの値を加算しないように、ジェスチャー値を直接設定
+    // （spine, headはupdateIdleSwayでも動くので、ジェスチャーが優先）
+    if (boneName === 'spine' || boneName === 'head') {
+      // idle揺れの上にジェスチャーのオフセットを加算（updateIdleSwayで既に設定された値に上乗せ）
+      bone.rotation.x += cur.x
+      bone.rotation.y += cur.y
+      bone.rotation.z += cur.z
+    } else {
+      bone.rotation.x = cur.x
+      bone.rotation.y = cur.y
+      bone.rotation.z = cur.z
+    }
+
+    const dx = Math.abs(cur.x - target.x)
+    const dy = Math.abs(cur.y - target.y)
+    const dz = Math.abs(cur.z - target.z)
+    if (dx > 0.001 || dy > 0.001 || dz > 0.001) allDone = false
+  }
+
+  // ポーズ保持タイマー
+  if (g.poseTimer > 0) {
+    g.poseTimer -= delta
+  }
+
+  if (allDone && g.lastEmotion === 'neutral') {
+    g.active = false  // アイドルに戻りきったら補間停止
+  }
+}
+
+function lerpAngle(current, target, t) {
+  return current + (target - current) * Math.min(t, 1)
+}
+
+function deepClonePose(pose) {
+  const result = {}
+  for (const [k, v] of Object.entries(pose)) {
+    result[k] = { x: v.x, y: v.y, z: v.z }
+  }
+  return result
+}
+
 function applyIdlePose(vrm, variant = 0) {
   const humanoid = vrm.humanoid
   if (!humanoid) return
@@ -1596,6 +1913,9 @@ function setEmotion(emotion, intensity = 1) {
     activeChar._reaction.duration = emotion === 'happy' ? 1.5 : 0.8
     activeChar._reaction.timer = activeChar._reaction.duration
   }
+
+  // ジェスチャーポーズをトリガー（控えめモードでなければ）
+  setGesturePose(activeCharIndex, emotion, intensity)
 }
 
 function cycleEmotion() {
@@ -2720,6 +3040,11 @@ async function prefetchFreeTalk() {
 chrome.storage.local.get(['prefetchEnabled'], (data) => {
   prefetchEnabled = !!data.prefetchEnabled
   if (prefetchEnabled) prefetchFreeTalk()
+})
+
+// 控えめモード設定の復元
+chrome.storage.local.get(['gestureSubdued'], (data) => {
+  gestureSubdued = !!data.gestureSubdued
 })
 
 async function playFreeTalk() {
@@ -4253,6 +4578,9 @@ function animate() {
       }
     }
 
+    // ===== ジェスチャーポーズ補間 =====
+    updateGesture(ch, delta)
+
     currentVRM = savedVRM
     ch.vrm.update(delta)
     if (ch.mixer) ch.mixer.update(delta)
@@ -4428,6 +4756,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break
     case 'toggle-local-chat':
       toggleLocalCommentBox()
+      break
+    case 'set-gesture-subdued':
+      gestureSubdued = !!msg.value
+      console.log(`🤐 ジェスチャー控えめモード: ${gestureSubdued ? 'ON' : 'OFF'}`)
+      if (gestureSubdued) {
+        // 控えめON → 全キャラをアイドルポーズに戻す
+        for (let i = 0; i < characters.length; i++) {
+          setGesturePose(i, 'neutral')
+        }
+      }
       break
     case 'start-prefetch':
       prefetchEnabled = true

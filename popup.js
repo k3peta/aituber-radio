@@ -585,13 +585,19 @@ document.getElementById('dailyAlarmTime')?.addEventListener('change', async (e) 
 })
 
 // 復元
-chrome.storage.local.get(['dailyAlarmEnabled', 'dailyAlarmTime', 'autoRecordMorning'], (data) => {
+chrome.storage.local.get(['dailyAlarmEnabled', 'dailyAlarmTime', 'autoRecordMorning', 'gestureSubdued'], (data) => {
   if (data.dailyAlarmEnabled) document.getElementById('dailyAlarmEnabled').checked = true
   if (data.dailyAlarmTime) document.getElementById('dailyAlarmTime').value = data.dailyAlarmTime
   if (data.autoRecordMorning) document.getElementById('autoRecordMorning').checked = true
+  if (data.gestureSubdued) document.getElementById('gestureSubdued').checked = true
 })
 
 document.getElementById('autoRecordMorning')?.addEventListener('change', (e) => {
   chrome.storage.local.set({ autoRecordMorning: e.target.checked })
+})
+
+document.getElementById('gestureSubdued')?.addEventListener('change', (e) => {
+  chrome.storage.local.set({ gestureSubdued: e.target.checked })
+  sendToViewer({ action: 'set-gesture-subdued', value: e.target.checked })
 })
 
