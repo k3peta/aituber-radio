@@ -851,11 +851,11 @@ const GESTURE_POSES = {
     { // ② 右手ガッツポーズ
       label: 'ガッツポーズ',
       bones: {
-        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.40 },
-        rightUpperArm: { x: 0, y: -0.3, z: Math.PI * 0.08 },
+        leftUpperArm:  { x: 0, y: 0, z: -Math.PI * 0.42 },
+        rightUpperArm: { x: -0.3, y: -0.2, z: Math.PI * 0.40 },
         leftLowerArm:  { x: 0, y: 0, z: -Math.PI * 0.05 },
-        rightLowerArm: { x: -1.4, y: 0, z: Math.PI * 0.1 },
-        spine:         { x: -0.02, y: 0, z: 0.02 },
+        rightLowerArm: { x: -2.0, y: 0, z: Math.PI * 0.05 },
+        spine:         { x: -0.03, y: 0, z: 0.03 },
       }
     },
     { // ③ 両手を胸の前で小さくパチパチ風
