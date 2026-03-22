@@ -883,6 +883,40 @@ const GESTURE_POSES = {
         rightLowerArm: { x: -1.2, y: 0, z: Math.PI * 0.05 },
         spine:         { x: -0.02, y: 0, z: 0 },
       }
+    },
+    { // ④ 挙手（はい！）
+      label: '挙手',
+      bones: {
+        spine:               { x: -0.4194, y: 0.0519, z: -0.0432 },
+        chest:               { x: 0.0273, y: 0.3335, z: -0.0041 },
+        upperChest:          { x: -0.5518, y: -0.2401, z: -0.1297 },
+        neck:                { x: 0.0911, y: -0.2706, z: 0.0451 },
+        head:                { x: 0.1065, y: 0.2046, z: -0.2343 },
+        leftShoulder:        { x: 0.1934, y: 0.0325, z: -0.9268 },
+        rightShoulder:       { x: 0.3196, y: 0.2912, z: -0.0698 },
+        leftUpperArm:        { x: -0.4894, y: 0.4321, z: -0.0395 },
+        rightUpperArm:       { x: 1.0973, y: 0.0763, z: -0.9035 },
+        leftLowerArm:        { x: -0.3872, y: 0, z: 0 },
+        rightLowerArm:       { x: 0.6529, y: 0, z: 0 },
+        leftHand:            { x: -0.0135, y: 0.3021, z: -0.0938 },
+        rightHand:           { x: -0.8069, y: -0.0034, z: 0.0518 },
+      }
+    },
+    { // ⑤ ワンポイント（人差し指を立てて説明）
+      label: 'ワンポイント',
+      bones: {
+        spine:               { x: 0.0256, y: 0, z: 0 },
+        chest:               { x: -0.2733, y: 0, z: 0 },
+        upperChest:          { x: -0.2164, y: 0, z: 0 },
+        neck:                { x: 0.2292, y: 0, z: 0 },
+        head:                { x: 0.1329, y: 0, z: 0 },
+        leftShoulder:        { x: 0.3703, y: 0.2127, z: 0.1364 },
+        rightShoulder:       { x: 0.3703, y: -0.2127, z: -0.1364 },
+        leftUpperArm:        { x: 0.2244, y: 0.1954, z: 1.2405 },
+        rightUpperArm:       { x: 0.04, y: -0.3517, z: -1.269 },
+        leftLowerArm:        { x: -0.1726, y: 0, z: 0 },
+        rightLowerArm:       { x: -2.6466, y: -0.5551, z: 2.8644 },
+      }
     }
   ],
   surprised: [
@@ -956,15 +990,22 @@ const GESTURE_POSES = {
     }
   ],
   angry: [
-    { // ① 腕組み
+    { // ① 腕組み（vroidposeから抽出したより自然なポーズ）
       label: '腕組み',
       bones: {
-        leftUpperArm:  { x: 0, y: 0.6, z: -Math.PI * 0.30 },
-        rightUpperArm: { x: 0, y: -0.6, z: Math.PI * 0.30 },
-        leftLowerArm:  { x: -1.5, y: 0, z: 0 },
-        rightLowerArm: { x: -1.5, y: 0, z: 0 },
-        spine:         { x: 0.03, y: 0, z: 0 },
-        head:          { x: 0.03, y: 0, z: 0 },
+        spine:               { x: 0.1364, y: 0.033, z: 0.0171 },
+        chest:               { x: -0.1625, y: 0.033, z: 0.0171 },
+        upperChest:          { x: -0.161, y: 0.0167, z: 0.0081 },
+        neck:                { x: 0.2823, y: -0.0186, z: 0.0035 },
+        head:                { x: 0.1826, y: -0.0173, z: -0.0043 },
+        leftShoulder:        { x: 0.3703, y: 0.2127, z: 0.1364 },
+        rightShoulder:       { x: 0.3703, y: -0.2127, z: -0.1364 },
+        leftUpperArm:        { x: 0.8695, y: 0.7106, z: 1.1295 },
+        rightUpperArm:       { x: 0.6178, y: -0.5193, z: -0.9909 },
+        leftLowerArm:        { x: 2.2939, y: 1.109, z: 2.1801 },
+        rightLowerArm:       { x: 2.6898, y: -1.0169, z: -2.7165 },
+        leftHand:            { x: -0.6549, y: 1.1798, z: -1.7073 },
+        rightHand:           { x: 0.1363, y: 0.0279, z: -0.874 },
       }
     },
     { // ② 片手を前に突き出して否定
