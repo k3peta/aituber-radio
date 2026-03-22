@@ -9,7 +9,9 @@
     "http://127.0.0.1:11180/*",
     "https://news.google.com/*",
     "https://weather.tsukumijima.net/*",
-    "https://api.whatistoday.cyou/*"
+    "https://api.whatistoday.cyou/*",
+    "https://picsum.photos/*",
+    "https://fastly.picsum.photos/*"
   ],
   "action": {
     "default_popup": "popup.html",

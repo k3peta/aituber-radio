@@ -4118,25 +4118,32 @@ async function playSetlist(setlist) {
 
       case 'auto-scenery': {
         // ランダム風景背景 + AI による風景トーク
-        status.textContent = '🎲 ランダム風景を取得中...'
-        const bgResult = await setRandomBackground()
-        if (stopRequested) break
-        if (!bgResult) {
-          showSubtitle('風景画像の取得に失敗しました', '🏞️')
-          await speak('風景画像の取得に失敗しました', speaker)
-          break
-        }
+        try {
+          status.textContent = '🎲 ランダム風景を取得中...'
+          const bgResult = await setRandomBackground()
+          if (stopRequested) break
+          if (!bgResult) {
+            showSubtitle('風景画像の取得に失敗しました', '🏞️')
+            await speak('風景画像の取得に失敗しました', speaker)
+            break
+          }
 
-        // Picsum API からメタ情報を取得
-        const photoInfo = await fetchPicsumInfo(bgResult.id)
-        const photographer = photoInfo ? photoInfo.author : '不明'
-        const photoUrl = photoInfo ? photoInfo.url : ''
+          // Picsum API からメタ情報を取得（失敗してもOK）
+          let photographer = '不明'
+          let photoUrl = ''
+          try {
+            const photoInfo = await fetchPicsumInfo(bgResult.id)
+            if (photoInfo) {
+              photographer = photoInfo.author || '不明'
+              photoUrl = photoInfo.url || ''
+              trackPhotoCredit(photographer, 'Unsplash / Picsum Photos')
+            }
+          } catch (e) {
+            console.warn('📷 Picsum メタ情報取得スキップ:', e.message)
+          }
 
-        // クレジット表示用に写真情報を記録（CC-BY: 撮影者 / Unsplash）
-        if (photoInfo) trackPhotoCredit(photographer, 'Unsplash / Picsum Photos')
-
-        const { dateStr: sDateStr, weekday: sWeekday } = getTodayDateInfo()
-        const sceneryPrompt = `あなたはラジオパーソナリティ。今日は${sDateStr}です。
+          const { dateStr: sDateStr, weekday: sWeekday } = getTodayDateInfo()
+          const sceneryPrompt = `あなたはラジオパーソナリティ。今日は${sDateStr}です。
 背景にランダムな風景写真が表示されています。
 写真の情報: 撮影者「${photographer}」${photoUrl ? '（出典: Unsplash）' : ''}
 
@@ -4144,19 +4151,24 @@ async function playSetlist(setlist) {
 写真の具体的な内容は分からないので、「どんな風景が映ってるかな？」「みなさんにはどう見えますか？」のように、リスナーと一緒に楽しむスタイルで。
 撮影者の名前にも触れてください。3〜5文で。1行1文で。
 ※重要: 曜日は必ず「${sWeekday}曜日」を使ってください。`
-        let sceneryScript = await callLLM([{ role: 'user', content: sceneryPrompt }], { maxTokens: 1000, temperature: 0.9 })
-        if (stopRequested) break
-        if (sceneryScript) sceneryScript = fixWeekdayInText(sceneryScript, sWeekday)
-        const sceneryDialogues = sceneryScript ? parseScript(`---\n---\n${sceneryScript}`).dialogues : []
-        if (sceneryDialogues.length > 0) {
-          status.textContent = `🏞️ 風景トーク（${sceneryDialogues.length}行）`
-          const sceneryStopped = await speakPipeline(sceneryDialogues, speaker, (line, i) => {
-            setEmotion(line.emotion, line.intensity)
-            showSubtitle(line.text, `🏞️ 今日の風景（📷 ${photographer}）`)
-          })
-          if (sceneryStopped) { cleanup(); return }
+          let sceneryScript = await callLLM([{ role: 'user', content: sceneryPrompt }], { maxTokens: 1000, temperature: 0.9 })
+          if (stopRequested) break
+          if (sceneryScript) sceneryScript = fixWeekdayInText(sceneryScript, sWeekday)
+          const sceneryDialogues = sceneryScript ? parseScript(`---\n---\n${sceneryScript}`).dialogues : []
+          if (sceneryDialogues.length > 0) {
+            status.textContent = `🏞️ 風景トーク（${sceneryDialogues.length}行）`
+            const sceneryStopped = await speakPipeline(sceneryDialogues, speaker, (line, i) => {
+              setEmotion(line.emotion, line.intensity)
+              showSubtitle(line.text, `🏞️ 今日の風景（📷 ${photographer}）`)
+            })
+            if (sceneryStopped) { cleanup(); return }
+          }
+          hideSubtitle()
+        } catch (e) {
+          console.error('auto-scenery error:', e)
+          status.textContent = `⚠️ 風景トークでエラー: ${e.message}`
+          await sleep(2000)
         }
-        hideSubtitle()
         break
       }
     }
