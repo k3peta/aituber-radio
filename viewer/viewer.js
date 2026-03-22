@@ -3244,6 +3244,19 @@ async function playCard(cardId) {
   // 台本を保存（次回再生時のため）
   chrome.storage.local.set({ lastScript: setlistText, lastScriptName: card.title })
 
+  // 背景画像の適用（カードに background フィールドがあれば）
+  if (card.background) {
+    if (card.background === 'random') {
+      setRandomBackground()
+    } else {
+      // 相対パスの場合はカードのベースURLと結合
+      const bgUrl = card.background.startsWith('http')
+        ? card.background
+        : `${STATION_BASE_URL}/cards/${cardId}/${card.background}`
+      setBackgroundFromURL(bgUrl)
+    }
+  }
+
   // 再生
   if (isSetlist(setlistText)) {
     const setlist = parseSetlist(setlistText)
@@ -4128,6 +4141,47 @@ function changeBackground(imageUrl) {
   document.getElementById('bg-layer').style.backgroundImage = `url('${imageUrl}')`
 }
 
+/**
+ * Picsum Photos (CC-0) からランダム背景を取得してセット
+ */
+function setRandomBackground() {
+  const cacheBuster = Date.now()
+  const url = `https://picsum.photos/1920/1080?random=${cacheBuster}`
+  console.log('🎲 ランダム背景を取得中...')
+  status.textContent = '🎲 ランダム背景を取得中...'
+
+  // Picsum はリダイレクトで実画像URLを返すので、img要素で読み込む
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.onload = () => {
+    document.getElementById('bg-layer').style.backgroundImage = `url('${img.src}')`
+    status.textContent = '🎲 背景を変更しました'
+    console.log('🎲 ランダム背景セット:', img.src)
+  }
+  img.onerror = () => {
+    status.textContent = '❌ 背景の取得に失敗しました'
+    console.warn('🎲 ランダム背景の取得失敗')
+  }
+  img.src = url
+}
+
+/**
+ * URLから背景画像をセット（カードのbackgroundフィールド等で使用）
+ */
+function setBackgroundFromURL(url) {
+  console.log('🖼️ 背景画像URL:', url)
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.onload = () => {
+    document.getElementById('bg-layer').style.backgroundImage = `url('${img.src}')`
+    console.log('🖼️ 背景セット完了')
+  }
+  img.onerror = () => {
+    console.warn('⚠️ 背景画像の読み込み失敗:', url)
+  }
+  img.src = url
+}
+
 // ============================================
 // フロート画像（図表・スライド表示）
 // ============================================
@@ -4624,6 +4678,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break
     case 'change-bg':
       document.getElementById('bgInput').click()
+      break
+    case 'random-bg':
+      setRandomBackground()
+      break
+    case 'set-bg-url':
+      if (msg.url) setBackgroundFromURL(msg.url)
       break
     case 'test-speak':
       showSubtitle('こんばんは、怪談ちゃんラジオの時間だよ。今日も怖い話、いきますよ。', 'AITuber Radio')

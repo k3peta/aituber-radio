@@ -195,6 +195,10 @@ document.getElementById('changeBG').addEventListener('click', () => {
   sendToViewer('change-bg')
 })
 
+document.getElementById('randomBG').addEventListener('click', () => {
+  sendToViewer({ action: 'random-bg' })
+})
+
 // ============================================
 // キャラクタースロット
 // ============================================
