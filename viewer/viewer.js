@@ -1091,6 +1091,14 @@ function updateGesture(ch, delta) {
   const humanoid = ch.vrm.humanoid
   if (!humanoid) return
 
+  // 前回適用したオフセットを記録（初回は0）
+  if (!g.appliedOffset) {
+    g.appliedOffset = {}
+    for (const bone of Object.keys(IDLE_POSE)) {
+      g.appliedOffset[bone] = { x: 0, y: 0, z: 0 }
+    }
+  }
+
   const speed = g.transitionSpeed * delta
   let allDone = true
 
@@ -1107,13 +1115,14 @@ function updateGesture(ch, delta) {
     cur.y = lerpAngle(cur.y, target.y, speed)
     cur.z = lerpAngle(cur.z, target.z, speed)
 
-    // この行のボーンにidleSwayの値を加算しないように、ジェスチャー値を直接設定
-    // （spine, headはupdateIdleSwayでも動くので、ジェスチャーが優先）
     if (boneName === 'spine' || boneName === 'head') {
-      // idle揺れの上にジェスチャーのオフセットを加算（updateIdleSwayで既に設定された値に上乗せ）
-      bone.rotation.x += cur.x
-      bone.rotation.y += cur.y
-      bone.rotation.z += cur.z
+      // spine/headはidleSwayが既に値を設定しているので、
+      // 前回のオフセットを引いて、新しいオフセットを加算
+      const prev = g.appliedOffset[boneName] || { x: 0, y: 0, z: 0 }
+      bone.rotation.x += (cur.x - prev.x)
+      bone.rotation.y += (cur.y - prev.y)
+      bone.rotation.z += (cur.z - prev.z)
+      g.appliedOffset[boneName] = { x: cur.x, y: cur.y, z: cur.z }
     } else {
       bone.rotation.x = cur.x
       bone.rotation.y = cur.y
