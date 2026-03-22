@@ -992,12 +992,19 @@ const GESTURE_POSES = {
     { // ① 腕組み
       label: '腕組み',
       bones: {
-        leftUpperArm:  { x: -0.2, y: 0.6, z: -Math.PI * 0.30 },
-        rightUpperArm: { x: -0.2, y: -0.6, z: Math.PI * 0.30 },
-        leftLowerArm:  { x: -1.8, y: 0, z: 0 },
-        rightLowerArm: { x: -1.8, y: 0, z: 0 },
-        spine:         { x: 0.03, y: 0, z: 0 },
-        head:          { x: 0.03, y: 0, z: 0 },
+        spine               : { x: 0.1359, y: -0.035, z: -0.0124 },
+        chest               : { x: -0.1631, y: -0.0298, z: -0.0222 },
+        upperChest          : { x: -0.1612, y: -0.0152, z: -0.0107 },
+        head                : { x: 0.1825, y: 0.0178, z: 0.0011 },
+        neck                : { x: 0.2824, y: 0.0168, z: -0.0085 },
+        leftShoulder        : { x: 0.3492, y: -0.2467, z: -0.0527 },
+        leftUpperArm        : { x: -0.1105, y: -1.0564, z: -0.8527 },
+        leftLowerArm        : { x: 2.9513, y: -1.2659, z: 2.5852 },
+        leftHand            : { x: 1.2133, y: -0.5278, z: 1.6309 },
+        rightShoulder       : { x: 0.3492, y: 0.2467, z: 0.0527 },
+        rightUpperArm       : { x: -0.0297, y: 0.7842, z: 0.8341 },
+        rightLowerArm       : { x: -2.9697, y: 1.0698, z: -3.0733 },
+        rightHand           : { x: 0.109, y: 0.0866, z: 0.8712 },
       }
     },
     { // ② 片手を前に突き出して否定
