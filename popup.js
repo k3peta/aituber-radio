@@ -466,18 +466,19 @@ document.getElementById('saveTTSSettings').addEventListener('click', async () =>
   const engine = document.querySelector('input[name="ttsEngine"]:checked').value
   const port = parseInt(document.getElementById('ttsPort').value) || TTS_PORTS[engine]
   const modelId = parseInt(document.getElementById('ttsModelId').value) || 0
+  const speakerId = parseInt(document.getElementById('ttsSpeakerId')?.value) || 0
 
-  await chrome.storage.local.set({ ttsEngine: engine, ttsPort: port, ttsModelId: modelId })
+  await chrome.storage.local.set({ ttsEngine: engine, ttsPort: port, ttsModelId: modelId, ttsSpeakerId: speakerId })
 
   // ビューワーにも通知
-  await sendToViewer('update-tts-settings', { ttsEngine: engine, ttsPort: port, ttsModelId: modelId })
+  await sendToViewer('update-tts-settings', { ttsEngine: engine, ttsPort: port, ttsModelId: modelId, ttsSpeakerId: speakerId })
 
   document.getElementById('ttsStatus').textContent = '✅ 保存しました'
   setTimeout(() => { document.getElementById('ttsStatus').textContent = '' }, 2000)
 })
 
 // 復元
-chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
+chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId', 'ttsSpeakerId'], (data) => {
   if (data.ttsEngine) {
     const radioId = { sbv2: 'ttsSbv2', custom: 'ttsCustom', browser: 'ttsBrowser', voicevox: 'ttsVoicevox' }[data.ttsEngine] || 'ttsVoicevox'
     const radio = document.getElementById(radioId)
@@ -486,6 +487,10 @@ chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
   }
   if (data.ttsPort) document.getElementById('ttsPort').value = data.ttsPort
   if (data.ttsModelId !== undefined) document.getElementById('ttsModelId').value = data.ttsModelId
+  if (data.ttsSpeakerId !== undefined) {
+    const el = document.getElementById('ttsSpeakerId')
+    if (el) el.value = data.ttsSpeakerId
+  }
 })
 
 // ============================================

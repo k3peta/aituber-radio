@@ -1535,14 +1535,16 @@ let voicevoxAvailable = true  // 後方互換
 let currentSpeedScale = 0.95
 let ttsEngine = 'voicevox'
 let ttsPort = 50021
-let ttsModelId = 0
+let ttsModelId = 0      // SBV2: model_id（どのモデルか）
+let ttsSpeakerId = 0   // SBV2: speaker_id（モデル内スタイル番号）
 
 // 起動時にTTS設定を復元
-chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId'], (data) => {
+chrome.storage.local.get(['ttsEngine', 'ttsPort', 'ttsModelId', 'ttsSpeakerId'], (data) => {
   if (data.ttsEngine) ttsEngine = data.ttsEngine
   if (data.ttsPort) ttsPort = data.ttsPort
   if (data.ttsModelId !== undefined) ttsModelId = data.ttsModelId
-  console.log(`TTS engine: ${ttsEngine} port:${ttsPort}`)
+  if (data.ttsSpeakerId !== undefined) ttsSpeakerId = data.ttsSpeakerId
+  console.log(`TTS engine: ${ttsEngine} port:${ttsPort} modelId:${ttsModelId} speakerId:${ttsSpeakerId}`)
 })
 
 async function checkTTS() {
@@ -1587,10 +1589,11 @@ async function synthesize(text, speakerId = 38) {
 
   if (ttsEngine === 'sbv2') {
     // Style-Bert-VITS2: GET /voice で直接WAV取得
+    // ⚠️ SBV2 の model_id / speaker_id は TTS設定を優先（VOICEVOXの speakerId は使わない）
     const params = new URLSearchParams({
       text: speakText,
       model_id: String(ttsModelId),
-      speaker_id: String(speakerId),
+      speaker_id: String(ttsSpeakerId),
       length: String(1.0 / currentSpeedScale),  // VOICEVOXのspeedScaleの逆数
       language: 'JP',
       auto_split: 'true',
@@ -4888,7 +4891,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       ttsEngine = msg.ttsEngine || 'voicevox'
       ttsPort = msg.ttsPort || 50021
       ttsModelId = msg.ttsModelId || 0
-      console.log(`TTS updated: ${ttsEngine} port:${ttsPort}`)
+      if (msg.ttsSpeakerId !== undefined) ttsSpeakerId = msg.ttsSpeakerId
+      console.log(`TTS updated: ${ttsEngine} port:${ttsPort} modelId:${ttsModelId} speakerId:${ttsSpeakerId}`)
       checkTTS()
       break
     case 'stop-playback':
