@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AITuber Radio",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "AITuber Radio — VRM キャラクターによるAIラジオ配信ツール",
   "permissions": ["storage", "tabs", "alarms", "tabCapture"],
   "host_permissions": [
