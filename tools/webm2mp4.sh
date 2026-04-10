@@ -27,6 +27,23 @@ for f in "$@"; do
     else
       osascript -e "display notification \"❌ ${name}\" with title \"変換失敗\"" 2>/dev/null
     fi
+  elif [[ "$f" == *.wav ]]; then
+    count=$((count + 1))
+    name=$(basename "$f")
+    out="${f%.wav}.mp4"
+    
+    # 通知: 開始
+    osascript -e "display notification \"${count}/${total}: ${name}\" with title \"WAV→MP4 変換中...\"" 2>/dev/null
+    
+    # 変換 (WAVをAACのMP4コンテナに変換)
+    "$FFMPEG" -y -i "$f" -c:a aac -b:a 192k "$out" 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+      size=$(du -h "$out" | cut -f1)
+      osascript -e "display notification \"✅ ${name%.wav}.mp4 (${size})\" with title \"変換完了\"" 2>/dev/null
+    else
+      osascript -e "display notification \"❌ ${name}\" with title \"変換失敗\"" 2>/dev/null
+    fi
   fi
 done
 

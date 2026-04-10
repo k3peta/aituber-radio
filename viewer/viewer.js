@@ -304,8 +304,9 @@ function startCompositeRender() {
     }
 
     // 5. ジングルオーバーレイ
-    if (jingleOverlay && jingleOverlay.classList.contains('visible')) {
-      const opacity = parseFloat(getComputedStyle(jingleOverlay).opacity) || 1
+    const jOpacity = parseFloat(getComputedStyle(jingleOverlay).opacity)
+    if (jingleOverlay && (jingleOverlay.classList.contains('visible') || (jingleOverlay.style.display !== 'none' && !isNaN(jOpacity) && jOpacity > 0))) {
+      const opacity = !isNaN(jOpacity) ? jOpacity : 1
       ctx.save()
       ctx.globalAlpha = opacity
       ctx.fillStyle = '#000'
@@ -1578,9 +1579,16 @@ async function checkVoicevox() { return checkTTS() }
  * テキストから音声データを合成（再生はしない）
  * @returns {AudioBuffer|null}
  */
+const _ttsCache = new Map()
+
 async function synthesize(text, speakerId = 38) {
   if (!ttsAvailable) return null
   trackSpeakerUsage(speakerId)
+
+  const cacheKey = `${speakerId}::${text}`
+  if (_ttsCache.has(cacheKey)) {
+    return _ttsCache.get(cacheKey)
+  }
 
   let wavBuffer
 
@@ -1620,7 +1628,10 @@ async function synthesize(text, speakerId = 38) {
     wavBuffer = await sRes.arrayBuffer()
   }
 
-  return await audioCtx.decodeAudioData(wavBuffer)
+  const decoded = await audioCtx.decodeAudioData(wavBuffer)
+  _ttsCache.set(cacheKey, decoded)
+  if (_ttsCache.size > 100) _ttsCache.delete(_ttsCache.keys().next().value)
+  return decoded
 }
 
 /**
@@ -2153,14 +2164,16 @@ function parseScript(mdText) {
     }
 
     // タグなしのプレーンテキスト行 → AI前処理の対象
-    const cleanText = stripURLs(trimmed)
-    if (cleanText) {
+    const { display, speech } = splitDisplaySpeech(trimmed)
+    if (display) {
+      const hasExplicitReading = (speech !== display)
       dialogues.push({
         emotion: currentEmotion || 'neutral',
         intensity: currentIntensity || 1.0,
-        text: cleanText,
+        text: display,
+        speechText: speech,
         character: currentCharacter,
-        _untagged: true
+        _untagged: !hasExplicitReading
       })
     }
   }
@@ -3122,9 +3135,9 @@ async function prefetchFreeTalk() {
   prefetchRunning = false
 }
 
-// プリフェッチ設定の読み込み
+// プリフェッチ設定の読み込み（デフォルト有効）
 chrome.storage.local.get(['prefetchEnabled'], (data) => {
-  prefetchEnabled = !!data.prefetchEnabled
+  prefetchEnabled = data.prefetchEnabled !== false // デフォルトtrue
   if (prefetchEnabled) prefetchFreeTalk()
 })
 
@@ -3574,7 +3587,7 @@ function generateFallbackReply(comment) {
 // ============================================
 function isSetlist(text) {
   // [type: talk] や [type: script] などがあればセットリスト
-  return /\[type:\s*(talk|script|jingle|freetalk|audio|auto-news|auto-weather|auto-today|auto-scenery)\]/i.test(text)
+  return /\[type:\s*(talk|script|jingle|freetalk|audio|image|auto-news|auto-weather|auto-today|auto-scenery)\]/i.test(text)
 }
 
 function parseSetlist(mdText) {
@@ -3726,6 +3739,91 @@ async function playSetlist(setlist) {
   currentSpeedScale = globalSpeed
   const pauseBetween = meta.pause_between ? parseInt(meta.pause_between) : 1000
 
+  const _llmGenerations = new Map()
+  // 全体の固定セリフやLLM動的生成をバックグラウンドで気まずい沈黙防止のために事前生成（キャッシュ）しておく
+  setTimeout(async () => {
+    for (let j = 0; j < segments.length; j++) {
+      const seg = segments[j]
+      if (stopRequested) break
+      // jingle内の短いセリフをキャッシュ
+      const speakTxt = seg.props.speaktext || seg.props.speakText
+      if (seg.type === 'jingle' && speakTxt) {
+        await synthesize(speakTxt, seg.props.speakspeaker || seg.props.speakSpeaker || globalSpeaker).catch(()=>{})
+        await sleep(100)
+      }
+      // トーク内の固定スクリプトを1行ずつキャッシュ
+      if (seg.type === 'talk' && seg.lines && seg.lines.length > 0 && !seg.props.ai) {
+        const textBlock = seg.lines.map(l => l.text).join('\n')
+        try {
+          const parsed = parseScript(`---\n---\n${textBlock}`)
+          for (const d of parsed.dialogues) {
+            if (stopRequested) break
+            await synthesize(d.text, seg.props.speaker || globalSpeaker).catch(()=>{})
+            await sleep(100)  // サーバー負荷を和らげる
+          }
+        } catch(e){}
+      }
+      // --- LLM動的セグメントの事前生成とTTSキャッシュ ---
+      if (seg.type === 'auto-news') {
+        try {
+          const news = await fetchNewsForShow()
+          if (news.length > 0 && !stopRequested) {
+            const { dateStr, weekday } = getTodayDateInfo()
+            const newsPrompt = `あなたはラジオパーソナリティ。今日は${dateStr}です。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n※重要: 曜日は必ず「${weekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${news.map((n, idx) => `${idx + 1}. ${n}`).join('\n')}`
+            let newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
+            if (newsScript && !stopRequested) {
+               newsScript = fixWeekdayInText(newsScript, weekday)
+               const d = parseScript(`---\n---\n${newsScript}`).dialogues
+               _llmGenerations.set(j, { dialogues: d })
+               for (const line of d) await synthesize(line.text, seg.props.speaker || globalSpeaker).catch(()=>{})
+            }
+          }
+        } catch(e){}
+      } else if (seg.type === 'auto-weather') {
+        try {
+          const weather = await fetchWeatherForShow()
+          if (weather.length > 0 && !stopRequested) {
+            const weatherData = weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')
+            const { dateStr: wDateStr, weekday: wWeekday } = getTodayDateInfo()
+            const weatherPrompt = `あなたはラジオの天気予報担当。今日は${wDateStr}です。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n※重要: 曜日は必ず「${wWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${weatherData}`
+            let weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
+            if (weatherScript && !stopRequested) {
+               weatherScript = fixWeekdayInText(weatherScript, wWeekday)
+               const d = parseScript(`---\n---\n${weatherScript}`).dialogues
+               _llmGenerations.set(j, { dialogues: d })
+               for (const line of d) await synthesize(line.text, seg.props.speaker || globalSpeaker).catch(()=>{})
+            }
+          }
+        } catch(e){}
+      } else if (seg.type === 'auto-today') {
+        try {
+          const history = await fetchTodayInHistoryForShow()
+          if (history.length > 0 && !stopRequested) {
+            const { dateStr: tDateStr, weekday: tWeekday } = getTodayDateInfo()
+            const todayPrompt = `あなたはラジオパーソナリティ。今日は${tDateStr}です。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n※重要: 曜日は必ず「${tWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${history.join('\n')}`
+            let todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
+            if (todayScript && !stopRequested) {
+               todayScript = fixWeekdayInText(todayScript, tWeekday)
+               const d = parseScript(`---\n---\n${todayScript}`).dialogues
+               _llmGenerations.set(j, { dialogues: d })
+               for (const line of d) await synthesize(line.text, seg.props.speaker || globalSpeaker).catch(()=>{})
+            }
+          }
+        } catch(e){}
+      } else if (seg.type === 'freetalk' && seg.props.topic) {
+        const topic = { theme: seg.props.topic, hook: seg.props.hook || seg.props.topic }
+        try {
+           const ftText = await generateFreeTalkText(topic)
+           if (ftText && !stopRequested) {
+             const d = parseFreeTalkOutput(ftText)
+             _llmGenerations.set(j, { dialogues: d })
+             for (const line of d) await synthesize(line.text, seg.props.speaker || globalSpeaker).catch(()=>{})
+           }
+        } catch(e){}
+      }
+    }
+  }, 2000)
+
   // ウィンドウサイズ変更（frontmatter: size: 1080x1920）
   if (meta.size) {
     const sizeMatch = meta.size.match(/(\d+)\s*[x×]\s*(\d+)/i)
@@ -3822,6 +3920,9 @@ async function playSetlist(setlist) {
 
     switch (seg.type) {
       case 'talk': {
+        if (prefetchEnabled && freeTalkQueue.length < PREFETCH_QUEUE_SIZE && !prefetchRunning) {
+          prefetchFreeTalk()
+        }
         // 表情設定
         if (seg.props.emotion) setEmotion(seg.props.emotion, seg.props.intensity || 0.8)
         // 背景変更
@@ -3878,6 +3979,9 @@ async function playSetlist(setlist) {
       }
 
       case 'script': {
+        if (prefetchEnabled && freeTalkQueue.length < PREFETCH_QUEUE_SIZE && !prefetchRunning) {
+          prefetchFreeTalk()
+        }
         // 外部台本ファイルを読み込み
         let filePath = seg.props.file
         if (!filePath) break
@@ -4019,17 +4123,81 @@ async function playSetlist(setlist) {
         break
       }
 
+      case 'image': {
+        const overlayImageUrl = seg.props.file || seg.props.overlay
+        if (!overlayImageUrl) break
+
+        const duration = seg.props.duration || 5
+        const transitionTime = seg.props.transition || 1.0
+        
+        const solvedUrl = await resolveMediaURL(overlayImageUrl)
+        if (!solvedUrl) break
+
+        const imgOverlay = document.getElementById('jingle-overlay')
+        const imgEl = document.getElementById('jingle-image')
+
+        // 現在表示中の場合は一旦フェードアウトさせてじんわりとクロスフェード効果を出す
+        if (imgOverlay.style.opacity === '1') {
+           imgOverlay.style.transition = `opacity ${transitionTime / 2}s ease`
+           imgOverlay.style.opacity = '0'
+           await sleep((transitionTime / 2) * 1000)
+        } else {
+           imgOverlay.style.transition = 'none'
+           imgOverlay.style.opacity = '0'
+        }
+        
+        imgOverlay.style.display = 'flex'
+        imgEl.src = ''
+
+        await new Promise((resolve) => {
+          imgEl.onload = resolve
+          imgEl.onerror = resolve
+          imgEl.src = solvedUrl
+          if (imgEl.complete) resolve()
+        })
+
+        // フェードイン
+        imgOverlay.style.transition = `opacity ${transitionTime}s ease`
+        void imgOverlay.offsetHeight
+        imgOverlay.style.opacity = '1'
+
+        status.textContent = '🖼 画像表示中...'
+
+        let waited = 0
+        while (waited < duration * 1000) {
+          if (stopRequested) break
+          await sleep(100)
+          waited += 100
+        }
+
+        // 次のブロックが画像でない場合や、明示的な終了指定があればフェードアウトする
+        if (!seg.props.keepoverlay && !seg.props.keepOverlay) {
+          imgOverlay.style.opacity = '0'
+          await sleep(transitionTime * 1000)
+          if (imgOverlay.style.opacity === '0') {
+            imgOverlay.style.display = 'none'
+            imgEl.src = ''
+          }
+        }
+        break
+      }
+
       case 'freetalk': {
         // AI雑談セグメント
         const topic = seg.props.topic
           ? { theme: seg.props.topic, hook: seg.props.hook || seg.props.topic }
           : pickUniqueFreeTalkTopic()
 
-        status.textContent = `🤔 「${topic.theme}」について考え中...`
-        const ftText = await generateFreeTalkText(topic)
-        if (!ftText || stopRequested) break
+        let ftDialogues = []
+        if (seg.props.topic && _llmGenerations.has(si)) {
+          ftDialogues = _llmGenerations.get(si).dialogues
+        } else {
+          status.textContent = `🤔 「${topic.theme}」について考え中...`
+          const ftText = await generateFreeTalkText(topic)
+          if (!ftText || stopRequested) break
+          ftDialogues = parseFreeTalkOutput(ftText)
+        }
 
-        let ftDialogues = parseFreeTalkOutput(ftText)
         if (ftDialogues.some(d => d._untagged)) {
           ftDialogues = fallbackSplit(ftDialogues)
         }
@@ -4094,20 +4262,26 @@ async function playSetlist(setlist) {
       }
 
       case 'auto-news': {
-        status.textContent = '📰 ニュース取得中...'
-        const news = await fetchNewsForShow()
-        if (stopRequested) break
-        if (news.length === 0) {
-          showSubtitle('ニュースの取得に失敗しました', '📰')
-          await speak('ニュースの取得に失敗しました', speaker)
-          break
+        status.textContent = '📰 ニュース準備中...'
+        let newsDialogues = []
+        if (_llmGenerations.has(si)) {
+          newsDialogues = _llmGenerations.get(si).dialogues
+        } else {
+          status.textContent = '📰 ニュース取得中...'
+          const news = await fetchNewsForShow()
+          if (stopRequested) break
+          if (news.length === 0) {
+            showSubtitle('ニュースの取得に失敗しました', '📰')
+            await speak('ニュースの取得に失敗しました', speaker)
+            break
+          }
+          const { dateStr, weekday } = getTodayDateInfo()
+          const newsPrompt = `あなたはラジオパーソナリティ。今日は${dateStr}です。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n※重要: 曜日は必ず「${weekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${news.map((n, idx) => `${idx + 1}. ${n}`).join('\n')}`
+          let newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
+          if (stopRequested) break
+          if (newsScript) newsScript = fixWeekdayInText(newsScript, weekday)
+          newsDialogues = newsScript ? parseScript(`---\n---\n${newsScript}`).dialogues : []
         }
-        const { dateStr, weekday } = getTodayDateInfo()
-        const newsPrompt = `あなたはラジオパーソナリティ。今日は${dateStr}です。以下のニュースを自然な口語体で紹介して。各ニュースに感想も付けて。1行1文で。\n※重要: 曜日は必ず「${weekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${news.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
-        let newsScript = await callLLM([{ role: 'user', content: newsPrompt }], { maxTokens: 3000, temperature: 0.8 })
-        if (stopRequested) break
-        if (newsScript) newsScript = fixWeekdayInText(newsScript, weekday)
-        const newsDialogues = newsScript ? parseScript(`---\n---\n${newsScript}`).dialogues : []
         if (newsDialogues.length > 0) {
           status.textContent = `📰 ニュース（${newsDialogues.length}行）`
           const newsStopped = await speakPipeline(newsDialogues, speaker, (line, i) => {
@@ -4121,21 +4295,27 @@ async function playSetlist(setlist) {
       }
 
       case 'auto-weather': {
-        status.textContent = '🌤️ 天気取得中...'
-        const weather = await fetchWeatherForShow()
-        if (stopRequested) break
-        if (weather.length === 0) {
-          showSubtitle('天気情報の取得に失敗しました', '🌤️')
-          await speak('天気情報の取得に失敗しました', speaker)
-          break
+        status.textContent = '🌤️ 天気情報準備中...'
+        let weatherDialogues = []
+        if (_llmGenerations.has(si)) {
+          weatherDialogues = _llmGenerations.get(si).dialogues
+        } else {
+          status.textContent = '🌤️ 天気取得中...'
+          const weather = await fetchWeatherForShow()
+          if (stopRequested) break
+          if (weather.length === 0) {
+            showSubtitle('天気情報の取得に失敗しました', '🌤️')
+            await speak('天気情報の取得に失敗しました', speaker)
+            break
+          }
+          const weatherData = weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')
+          const { dateStr: wDateStr, weekday: wWeekday } = getTodayDateInfo()
+          const weatherPrompt = `あなたはラジオの天気予報担当。今日は${wDateStr}です。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n※重要: 曜日は必ず「${wWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${weatherData}`
+          let weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
+          if (stopRequested) break
+          if (weatherScript) weatherScript = fixWeekdayInText(weatherScript, wWeekday)
+          weatherDialogues = weatherScript ? parseScript(`---\n---\n${weatherScript}`).dialogues : []
         }
-        const weatherData = weather.map(w => `${w.area}（${w.city}）: ${w.telop} 最高${w.maxTemp}°C/最低${w.minTemp}°C${w.rainChance ? ' 降水確率' + w.rainChance : ''}`).join('\n')
-        const { dateStr: wDateStr, weekday: wWeekday } = getTodayDateInfo()
-        const weatherPrompt = `あなたはラジオの天気予報担当。今日は${wDateStr}です。以下の天気を自然な口語体で紹介して。各地域に傘や服装のアドバイスも付けて。1行1文で。\n※重要: 曜日は必ず「${wWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${weatherData}`
-        let weatherScript = await callLLM([{ role: 'user', content: weatherPrompt }], { maxTokens: 3000, temperature: 0.8 })
-        if (stopRequested) break
-        if (weatherScript) weatherScript = fixWeekdayInText(weatherScript, wWeekday)
-        const weatherDialogues = weatherScript ? parseScript(`---\n---\n${weatherScript}`).dialogues : []
         if (weatherDialogues.length > 0) {
           status.textContent = `🌤️ 天気予報（${weatherDialogues.length}行）`
           const weatherStopped = await speakPipeline(weatherDialogues, speaker, (line, i) => {
@@ -4149,20 +4329,26 @@ async function playSetlist(setlist) {
       }
 
       case 'auto-today': {
-        status.textContent = '📅 今日は何の日を取得中...'
-        const history = await fetchTodayInHistoryForShow()
-        if (stopRequested) break
-        if (history.length === 0) {
-          showSubtitle('今日は何の日の情報が取得できませんでした', '📅')
-          await speak('今日は何の日の情報が取得できませんでした', speaker)
-          break
+        status.textContent = '📅 今日は何の日を準備中...'
+        let todayDialogues = []
+        if (_llmGenerations.has(si)) {
+          todayDialogues = _llmGenerations.get(si).dialogues
+        } else {
+          status.textContent = '📅 今日は何の日を取得中...'
+          const history = await fetchTodayInHistoryForShow()
+          if (stopRequested) break
+          if (history.length === 0) {
+            showSubtitle('今日は何の日の情報が取得できませんでした', '📅')
+            await speak('今日は何の日の情報が取得できませんでした', speaker)
+            break
+          }
+          const { dateStr: tDateStr, weekday: tWeekday } = getTodayDateInfo()
+          const todayPrompt = `あなたはラジオパーソナリティ。今日は${tDateStr}です。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n※重要: 曜日は必ず「${tWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${history.join('\n')}`
+          let todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
+          if (stopRequested) break
+          if (todayScript) todayScript = fixWeekdayInText(todayScript, tWeekday)
+          todayDialogues = todayScript ? parseScript(`---\n---\n${todayScript}`).dialogues : []
         }
-        const { dateStr: tDateStr, weekday: tWeekday } = getTodayDateInfo()
-        const todayPrompt = `あなたはラジオパーソナリティ。今日は${tDateStr}です。以下の「今日は何の日」情報を自然な口語体で楽しく紹介して。1行1文で。\n※重要: 曜日は必ず「${tWeekday}曜日」を使ってください。他の曜日に変えないでください。\n\n${history.join('\n')}`
-        let todayScript = await callLLM([{ role: 'user', content: todayPrompt }], { maxTokens: 2000, temperature: 0.8 })
-        if (stopRequested) break
-        if (todayScript) todayScript = fixWeekdayInText(todayScript, tWeekday)
-        const todayDialogues = todayScript ? parseScript(`---\n---\n${todayScript}`).dialogues : []
         if (todayDialogues.length > 0) {
           status.textContent = `📅 今日は何の日（${todayDialogues.length}行）`
           const todayStopped = await speakPipeline(todayDialogues, speaker, (line, i) => {
